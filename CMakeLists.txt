@@ -36,9 +36,14 @@ target_link_libraries(tello PUBLIC Threads::Threads)
 target_compile_definitions(tello PRIVATE TELLO_VERSION="${TELLO_VERSION}")
 tello_strict(tello)
 
-# Fake drone executable.
+# Fake drone: a library (linked into the tests) and the tello-sim executable.
+add_library(tello_sim STATIC sim/simulator.cpp)
+target_include_directories(tello_sim PUBLIC sim)
+target_link_libraries(tello_sim PUBLIC tello)
+tello_strict(tello_sim)
+
 add_executable(tello-sim sim/main.cpp)
-target_link_libraries(tello-sim PRIVATE tello)
+target_link_libraries(tello-sim PRIVATE tello_sim)
 tello_strict(tello-sim)
 
 # CLI. The target name differs from the library; the binary is still called "tello".
@@ -66,9 +71,10 @@ if(TELLO_BUILD_TESTS)
     tests/test_drone.cpp
     tests/test_udp_transport.cpp
     tests/test_state.cpp
+    tests/test_simulator.cpp
   )
   target_include_directories(tello_tests PRIVATE tests)
-  target_link_libraries(tello_tests PRIVATE tello GTest::gtest_main)
+  target_link_libraries(tello_tests PRIVATE tello_sim GTest::gtest_main)
   tello_strict(tello_tests)
   include(GoogleTest)
   gtest_discover_tests(tello_tests)

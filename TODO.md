@@ -20,7 +20,7 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 | TEL-00001 | build: каркас C++20 на CMake, Rust в legacy/rust | ✅ Выполнена | 3 |
 | TEL-00002 | core: UDP-транспорт и слой команд SDK | ✅ Выполнена | 5 |
 | TEL-00003 | core: парсер телеметрии и StateListener | ✅ Выполнена | 3 |
-| TEL-00004 | sim: фейковый дрон tello-sim | 📂 Открыта | 5 |
+| TEL-00004 | sim: фейковый дрон tello-sim | ✅ Выполнена | 5 |
 | TEL-00005 | cli: REPL на C++ (паритет с Rust) | 📂 Открыта | 8 |
 | TEL-00006 | core: keepalive и автопосадка при низком заряде | 📂 Открыта | 3 |
 | TEL-00007 | cli: команды безопасности emergency / stop | 📂 Открыта | 2 |
@@ -116,7 +116,7 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 ### 🧪 Simulator
 
 ### [TEL-00004] sim: фейковый дрон tello-sim
-- **Status:** Открыта
+- **Status:** ✅ Выполнена
 - **Complexity:** 5
 - **Description:** Пока нет батареи — всё проверяем на нём. Библиотека + исполняемый `tello-sim`:
   UDP-сервер команд на `127.0.0.1` (порт настраивается, 0 = эфемерный), ответы как у дрона
