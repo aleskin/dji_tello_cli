@@ -19,7 +19,7 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 |---|---|---|---|
 | TEL-00001 | build: каркас C++20 на CMake, Rust в legacy/rust | ✅ Выполнена | 3 |
 | TEL-00002 | core: UDP-транспорт и слой команд SDK | ✅ Выполнена | 5 |
-| TEL-00003 | core: парсер телеметрии и StateListener | 📂 Открыта | 3 |
+| TEL-00003 | core: парсер телеметрии и StateListener | ✅ Выполнена | 3 |
 | TEL-00004 | sim: фейковый дрон tello-sim | 📂 Открыта | 5 |
 | TEL-00005 | cli: REPL на C++ (паритет с Rust) | 📂 Открыта | 8 |
 | TEL-00006 | core: keepalive и автопосадка при низком заряде | 📂 Открыта | 3 |
@@ -76,7 +76,7 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
   `error`/таймаут → `TelloError`. Юнит-тесты на `MockTransport`.
 
 ### [TEL-00003] core: парсер телеметрии и StateListener
-- **Status:** Открыта
+- **Status:** ✅ Выполнена
 - **Complexity:** 3
 - **Description:** `parse_state("pitch:0;roll:0;...;\r\n")` → `DroneState` (pitch, roll, yaw, vgx/vgy/vgz,
   templ/temph, tof, h, bat, baro, time, agx/agy/agz). `StateListener` — фоновый поток, UDP 8890,

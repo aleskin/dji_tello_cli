@@ -28,6 +28,8 @@ add_library(tello STATIC
   src/udp_socket.cpp
   src/udp_transport.cpp
   src/drone.cpp
+  src/state.cpp
+  src/state_listener.cpp
 )
 target_include_directories(tello PUBLIC include)
 target_link_libraries(tello PUBLIC Threads::Threads)
@@ -63,6 +65,7 @@ if(TELLO_BUILD_TESTS)
     tests/test_version.cpp
     tests/test_drone.cpp
     tests/test_udp_transport.cpp
+    tests/test_state.cpp
   )
   target_include_directories(tello_tests PRIVATE tests)
   target_link_libraries(tello_tests PRIVATE tello GTest::gtest_main)
