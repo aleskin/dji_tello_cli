@@ -17,15 +17,10 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 
 | ID | Задача | Статус | Сл. |
 |---|---|---|---|
-| TEL-00001 | build: каркас C++20 на CMake, Rust в legacy/rust | ✅ Выполнена | 3 |
-| TEL-00002 | core: UDP-транспорт и слой команд SDK | ✅ Выполнена | 5 |
-| TEL-00003 | core: парсер телеметрии и StateListener | ✅ Выполнена | 3 |
-| TEL-00004 | sim: фейковый дрон tello-sim | ✅ Выполнена | 5 |
 | TEL-00005 | cli: REPL на C++ (паритет с Rust) | 📂 Открыта | 8 |
 | TEL-00006 | core: keepalive и автопосадка при низком заряде | 📂 Открыта | 3 |
 | TEL-00007 | cli: команды безопасности emergency / stop | 📂 Открыта | 2 |
 | TEL-00008 | cli: миссии из файла | 📂 Открыта | 3 |
-| TEL-00009 | build: make bump-dry / bump-version + CHANGELOG.md | ✅ Выполнена | 5 |
 | TEL-00010 | build: make sanity-check (clang-tidy, cppcheck) | 📂 Открыта | 3 |
 | TEL-00011 | build: удалить legacy/rust, README под C++ | 📂 Открыта | 2 |
 | TEL-00012 | sim: режимы сбоев (потери пакетов, error, таймауты) | 📂 Открыта | 3 |
@@ -34,22 +29,6 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 ## 📝 Детали задач
 
 ### 🔧 Build & Infrastructure
-
-### [TEL-00001] build: каркас C++20 на CMake, Rust в legacy/rust
-- **Status:** ✅ Выполнена
-- **Complexity:** 3
-- **Description:** Rust-прототип переносится в `legacy/rust/` (как справочник). В корне — `CMakeLists.txt`
-  (C++20, `-Wall -Wextra -Wpedantic -Werror`), статическая библиотека `tello`, GoogleTest
-  (системный `/usr/src/googletest`, иначе FetchContent v1.14.0), `ctest`. `Makefile` — обёртка:
-  `build`, `test`, `sim`, `run-sim`, `clean`. Версия читается из `Makefile.version`.
-
-### [TEL-00009] build: make bump-dry / bump-version + CHANGELOG.md
-- **Status:** ✅ Выполнена
-- **Complexity:** 5
-- **Description:** Порт `panorama-ai/scripts/bump.py`: patch-бамп `Makefile.version`, секция CHANGELOG
-  из `git log` с прошлого бампа (`[TEL-…] BF` → Fixed, остальное → Added, `docs/chore` пропускать),
-  штамп `✅ Выполнена (vX.Y.Z, date)` и удаление выполненных задач из TODO.md, перегенерация доски,
-  коммит `chore: bump version to vX.Y.Z`. `bump-dry` ничего не пишет.
 
 ### [TEL-00010] build: make sanity-check (clang-tidy, cppcheck)
 - **Status:** Открыта
@@ -65,22 +44,6 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 - **Блокирована:** TEL-00005
 
 ### 🛰️ Core
-
-### [TEL-00002] core: UDP-транспорт и слой команд SDK
-- **Status:** ✅ Выполнена
-- **Complexity:** 5
-- **Description:** `ITransport` (send → reply с таймаутом) — единственный шов для моков.
-  `UdpTransport` на POSIX-сокете (RAII). `Drone`: `connect` (`command`), `takeoff`, `land`, движения
-  20..500 см, `cw/ccw` 1..360, `flip`, `speed` 10..100, `go`, `rc`, `stop`, `emergency`, чтения
-  `battery?`/`height?`/`temp?`/`wifi?`/`sdk?`/`sn?`/`time?`. Валидация диапазонов до отправки,
-  `error`/таймаут → `TelloError`. Юнит-тесты на `MockTransport`.
-
-### [TEL-00003] core: парсер телеметрии и StateListener
-- **Status:** ✅ Выполнена
-- **Complexity:** 3
-- **Description:** `parse_state("pitch:0;roll:0;...;\r\n")` → `DroneState` (pitch, roll, yaw, vgx/vgy/vgz,
-  templ/temph, tof, h, bat, baro, time, agx/agy/agz). `StateListener` — фоновый поток, UDP 8890,
-  хранит последнее состояние и время его получения. Тесты парсера + приём с localhost.
 
 ### [TEL-00006] core: keepalive и автопосадка при низком заряде
 - **Status:** Открыта
@@ -114,16 +77,6 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
   остановка и `land` при первой ошибке. `square <size>` как встроенный пример. Тест на симуляторе.
 
 ### 🧪 Simulator
-
-### [TEL-00004] sim: фейковый дрон tello-sim
-- **Status:** ✅ Выполнена
-- **Complexity:** 5
-- **Description:** Пока нет батареи — всё проверяем на нём. Библиотека + исполняемый `tello-sim`:
-  UDP-сервер команд на `127.0.0.1` (порт настраивается, 0 = эфемерный), ответы как у дрона
-  (`ok`, `error Not joystick`, `error Motor stop` и т.п. по диапазонам SDK), модель: SDK-режим,
-  в воздухе/на земле, высота, позиция и курс, батарея с ускоряемым разрядом, автопосадка после 15 с
-  тишины. Телеметрия ~10 Гц на state-порт клиента. Интеграционные тесты `UdpTransport` + `Drone`
-  против симулятора в том же процессе.
 
 ### [TEL-00012] sim: режимы сбоев (потери пакетов, error, таймауты)
 - **Status:** Открыта
