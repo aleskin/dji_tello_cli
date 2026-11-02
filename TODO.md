@@ -17,7 +17,7 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 
 | ID | Задача | Статус | Сл. |
 |---|---|---|---|
-| TEL-00001 | build: каркас C++20 на CMake, Rust в legacy/rust | 📂 Открыта | 3 |
+| TEL-00001 | build: каркас C++20 на CMake, Rust в legacy/rust | ✅ Выполнена | 3 |
 | TEL-00002 | core: UDP-транспорт и слой команд SDK | 📂 Открыта | 5 |
 | TEL-00003 | core: парсер телеметрии и StateListener | 📂 Открыта | 3 |
 | TEL-00004 | sim: фейковый дрон tello-sim | 📂 Открыта | 5 |
@@ -36,7 +36,7 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 ### 🔧 Build & Infrastructure
 
 ### [TEL-00001] build: каркас C++20 на CMake, Rust в legacy/rust
-- **Status:** Открыта
+- **Status:** ✅ Выполнена
 - **Complexity:** 3
 - **Description:** Rust-прототип переносится в `legacy/rust/` (как справочник). В корне — `CMakeLists.txt`
   (C++20, `-Wall -Wextra -Wpedantic -Werror`), статическая библиотека `tello`, GoogleTest

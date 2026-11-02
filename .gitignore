@@ -1,5 +1,8 @@
-# Rust build directory
-/target/
+# CMake build directory
+/build/
+
+# Rust build directory (legacy/rust)
+target/
 
 # Debug output
 *.rs.bk
