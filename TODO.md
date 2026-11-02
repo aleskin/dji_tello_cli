@@ -25,7 +25,7 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 | TEL-00006 | core: keepalive и автопосадка при низком заряде | 📂 Открыта | 3 |
 | TEL-00007 | cli: команды безопасности emergency / stop | 📂 Открыта | 2 |
 | TEL-00008 | cli: миссии из файла | 📂 Открыта | 3 |
-| TEL-00009 | build: make bump-dry / bump-version + CHANGELOG.md | 📂 Открыта | 5 |
+| TEL-00009 | build: make bump-dry / bump-version + CHANGELOG.md | ✅ Выполнена | 5 |
 | TEL-00010 | build: make sanity-check (clang-tidy, cppcheck) | 📂 Открыта | 3 |
 | TEL-00011 | build: удалить legacy/rust, README под C++ | 📂 Открыта | 2 |
 | TEL-00012 | sim: режимы сбоев (потери пакетов, error, таймауты) | 📂 Открыта | 3 |
@@ -44,7 +44,7 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
   `build`, `test`, `sim`, `run-sim`, `clean`. Версия читается из `Makefile.version`.
 
 ### [TEL-00009] build: make bump-dry / bump-version + CHANGELOG.md
-- **Status:** Открыта
+- **Status:** ✅ Выполнена
 - **Complexity:** 5
 - **Description:** Порт `panorama-ai/scripts/bump.py`: patch-бамп `Makefile.version`, секция CHANGELOG
   из `git log` с прошлого бампа (`[TEL-…] BF` → Fixed, остальное → Added, `docs/chore` пропускать),

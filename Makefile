@@ -5,7 +5,7 @@ BUILD_DIR ?= build
 JOBS      ?= $(shell nproc 2>/dev/null || echo 4)
 SIM_PORT  ?= 8889
 
-.PHONY: all build test sim run-sim clean
+.PHONY: all build test sim run-sim clean bump-dry bump-version
 
 all: build
 
@@ -30,3 +30,10 @@ run-sim: build
 
 clean:
 	rm -rf $(BUILD_DIR)
+
+# Version bump: Makefile.version + CHANGELOG.md + TODO.md, one commit. TYPE=patch|minor|major.
+bump-dry:
+	python3 scripts/bump.py $(or $(TYPE),patch) --dry-run
+
+bump-version:
+	python3 scripts/bump.py $(or $(TYPE),patch)

@@ -3,6 +3,9 @@ cmake_minimum_required(VERSION 3.20)
 # Makefile.version is the single source of truth for the version.
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/Makefile.version" TELLO_VERSION)
 string(STRIP "${TELLO_VERSION}" TELLO_VERSION)
+if(NOT TELLO_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
+  message(FATAL_ERROR "Makefile.version must be MAJOR.MINOR.PATCH, got '${TELLO_VERSION}'")
+endif()
 
 project(dji_tello_cli VERSION ${TELLO_VERSION} LANGUAGES CXX)
 
