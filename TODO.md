@@ -18,7 +18,7 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 | ID | Задача | Статус | Сл. |
 |---|---|---|---|
 | TEL-00001 | build: каркас C++20 на CMake, Rust в legacy/rust | ✅ Выполнена | 3 |
-| TEL-00002 | core: UDP-транспорт и слой команд SDK | 📂 Открыта | 5 |
+| TEL-00002 | core: UDP-транспорт и слой команд SDK | ✅ Выполнена | 5 |
 | TEL-00003 | core: парсер телеметрии и StateListener | 📂 Открыта | 3 |
 | TEL-00004 | sim: фейковый дрон tello-sim | 📂 Открыта | 5 |
 | TEL-00005 | cli: REPL на C++ (паритет с Rust) | 📂 Открыта | 8 |
@@ -67,7 +67,7 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 ### 🛰️ Core
 
 ### [TEL-00002] core: UDP-транспорт и слой команд SDK
-- **Status:** Открыта
+- **Status:** ✅ Выполнена
 - **Complexity:** 5
 - **Description:** `ITransport` (send → reply с таймаутом) — единственный шов для моков.
   `UdpTransport` на POSIX-сокете (RAII). `Drone`: `connect` (`command`), `takeoff`, `land`, движения

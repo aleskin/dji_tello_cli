@@ -25,6 +25,9 @@ endfunction()
 # Drone library.
 add_library(tello STATIC
   src/version.cpp
+  src/udp_socket.cpp
+  src/udp_transport.cpp
+  src/drone.cpp
 )
 target_include_directories(tello PUBLIC include)
 target_link_libraries(tello PUBLIC Threads::Threads)
@@ -58,6 +61,8 @@ if(TELLO_BUILD_TESTS)
 
   add_executable(tello_tests
     tests/test_version.cpp
+    tests/test_drone.cpp
+    tests/test_udp_transport.cpp
   )
   target_include_directories(tello_tests PRIVATE tests)
   target_link_libraries(tello_tests PRIVATE tello GTest::gtest_main)
