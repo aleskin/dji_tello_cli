@@ -10,6 +10,7 @@
 #include <filesystem>
 #include <functional>
 #include <istream>
+#include <map>
 #include <memory>
 #include <optional>
 #include <ostream>
@@ -129,6 +130,21 @@ public:
         key_layout_ = std::move(layout);
     }
 
+    // Caller validates the range (10..100), see "kbspeed".
+    void set_keyboard_speed(int speed)
+    {
+        keyboard_speed_ = speed;
+    }
+
+    // Aliases are read from this file now and written back after every alias/unalias.
+    // A missing file is fine; bad lines are reported and skipped.
+    void load_aliases(const std::filesystem::path& file);
+
+    [[nodiscard]] const std::map<std::string, std::string>& aliases() const
+    {
+        return aliases_;
+    }
+
 private:
     using Args = std::vector<std::string_view>;
     struct Entry
@@ -161,6 +177,11 @@ private:
     void ensure_stream(); // streamon + reader, if not running yet
     void take_photo();
     void show_window();
+    void alias_command(std::string_view line);
+    void unalias_command(const Args& args);
+    void print_aliases() const;
+    void save_aliases();
+    bool run_alias(const std::string& body, std::string_view name, const Args& args);
     void keyboard_mode();
     [[nodiscard]] video::Osd osd() const;
 
@@ -178,6 +199,9 @@ private:
     std::unique_ptr<video::VideoStream> video_; // between "video start" and "video stop"
     video::ViewerFactory viewer_factory_;
     KeyLayout key_layout_;
+    std::map<std::string, std::string> aliases_; // name -> "cmd $1; cmd"
+    std::filesystem::path aliases_file_;         // empty: aliases are not saved
+    int alias_depth_ = 0;                        // aliases calling aliases
     int keyboard_speed_ = kDefaultKeyboardSpeed;
     std::atomic<bool> keyboard_active_{false}; // read by the window thread for the OSD
     std::unique_ptr<video::Viewer> viewer_; // after video_: it reads the stream, so it goes first

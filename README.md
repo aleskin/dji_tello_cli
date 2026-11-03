@@ -68,7 +68,7 @@ line separated by `;`; the line stops at the first error.
 
 | Group | Commands |
 |---|---|
-| System | `help [cmd]`, `version`, `info`, `wait <s>`, `exit` |
+| System | `help [cmd]`, `version`, `info`, `wait <s>`, `alias`, `aliases`, `unalias <name>`, `exit` |
 | Flight | `connect`, `takeoff`, `land`, `hover` (EDU), `emergency` (motors off, no confirmation) |
 | Movement | `forward/back/left/right/up/down <20..500 cm>`, `cw/ccw <1..360>`, `flip <l\|r\|f\|b>`, `speed <10..100>`, `go <x> <y> <z> <speed>` |
 | Mission | `mission <file>`, `square <cm>` |
@@ -82,7 +82,7 @@ line separated by `;`; the line stops at the first error.
 
 - **Keepalive**: the drone lands by itself after 15 s without commands; the CLI sends a keepalive
   when you are quiet.
-- **Low battery**: a warning at 15 %, an automatic `land` at 10 % (from telemetry).
+- **Low battery**: a warning at 15 %, an automatic `land` at 10 % (from telemetry; see the config).
 - **Ctrl+C** in flight lands the drone; it never quits the program with the drone in the air.
   On the ground it only clears the line. `exit` or Ctrl+D quits.
 
@@ -101,6 +101,35 @@ land
 
 ```bash
 ./build/tello --mission mission.txt        # exit code 0 only if every line succeeded
+```
+
+### Aliases
+
+`alias name commands` defines a new command; `$1`..`$9` are its arguments, `$*` all of them.
+The body is the rest of the line, `;` included. Aliases are saved to `~/.config/tello/aliases`
+and work in missions too.
+
+```
+tello> alias hop up $1; down $1
+tello> takeoff; hop 50; land
+tello> aliases            # list;  alias hop = show one;  unalias hop = delete
+```
+
+### Config file
+
+`~/.config/tello/config` (or `$XDG_CONFIG_HOME/tello/config`) sets defaults; command-line flags
+override it. `key = value`, `#` starts a comment; unknown keys and bad values are reported and skipped.
+
+```
+host = 192.168.10.1
+port = 8889
+state_port = 8890        # 0 = telemetry off
+video_port = 11111
+model = tello            # or tello-edu
+warn_battery = 15        # percent
+land_battery = 10
+kbspeed = 40             # keyboard mode, 10..100
+key_forward = w          # also key_back/left/right/up/down/turn_left/turn_right (SDL key names)
 ```
 
 ## Architecture

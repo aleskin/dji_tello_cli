@@ -174,6 +174,31 @@ void CommandProcessor::register_commands()
             }
             sleep_(std::chrono::milliseconds(std::llround(seconds * 1000)));
         });
+    add({"alias",
+         {},
+         C::System,
+         "alias [name [commands]]",
+         "list aliases, show one, or define: alias hop up $1; down $1",
+         {}},
+        [this](const Args& a)
+        {
+            std::string line;
+            for (const auto word : a)
+            {
+                line += (line.empty() ? "" : " ") + std::string(word);
+            }
+            alias_command(line);
+        });
+    add({"aliases", {}, C::System, "aliases", "list aliases", {}},
+        [this](const Args&)
+        {
+            print_aliases();
+        });
+    add({"unalias", {}, C::System, "unalias <name>", "delete an alias", {}},
+        [this](const Args& a)
+        {
+            unalias_command(a);
+        });
     add({"exit", {"quit"}, C::System, "exit", "leave the program", {}},
         [this](const Args&)
         {
@@ -505,9 +530,19 @@ bool CommandProcessor::execute_line(std::string_view line)
 
 CommandProcessor::Outcome CommandProcessor::run_chain(std::string_view line)
 {
-    for (const auto part : split(line, ";"))
+    std::size_t pos = 0;
+    while (pos < line.size())
     {
-        const auto command = trim(part);
+        const auto semi = line.find(';', pos);
+        const auto rest = line.substr(pos);
+        auto command = trim(line.substr(pos, semi == std::string_view::npos ? semi : semi - pos));
+        pos = semi == std::string_view::npos ? line.size() : semi + 1;
+        if (command == "alias" || command.starts_with("alias ") || command.starts_with("alias\t"))
+        {
+            // The body of an alias is the rest of the line, ';' included.
+            command = trim(rest);
+            pos = line.size();
+        }
         if (command.empty())
         {
             continue;
@@ -604,6 +639,10 @@ bool CommandProcessor::execute(std::string_view command)
     const Entry* entry = find(name);
     if (!entry)
     {
+        if (const auto alias = aliases_.find(std::string(name)); alias != aliases_.end())
+        {
+            return run_alias(alias->second, name, args);
+        }
         out_ << "unknown command '" << name << "', see 'help'\n";
         return false;
     }
@@ -646,7 +685,215 @@ std::vector<std::string> CommandProcessor::completions(std::string_view prefix) 
             out.push_back(e.info.name);
         }
     }
+    for (const auto& [name, body] : aliases_)
+    {
+        if (name.starts_with(prefix))
+        {
+            out.push_back(name);
+        }
+    }
     return out;
+}
+
+namespace
+{
+
+constexpr int kMaxAliasDepth = 10;
+
+bool valid_alias_name(std::string_view name)
+{
+    return !name.empty() && std::ranges::all_of(name,
+                                                [](char c)
+                                                {
+                                                    return (c >= 'a' && c <= 'z') ||
+                                                           (c >= '0' && c <= '9') || c == '_' ||
+                                                           c == '-';
+                                                });
+}
+
+// "$1".."$9" are the arguments, "$*" all of them; a missing one is a usage error.
+std::string expand_alias(std::string_view body, std::string_view name,
+                         const std::vector<std::string_view>& args)
+{
+    std::string out;
+    std::size_t highest = 0;
+    bool uses_all = false;
+    for (std::size_t i = 0; i < body.size(); ++i)
+    {
+        const char next = i + 1 < body.size() ? body[i + 1] : '\0';
+        if (body[i] != '$' || !((next >= '1' && next <= '9') || next == '*'))
+        {
+            out += body[i];
+            continue;
+        }
+        ++i;
+        if (next == '*')
+        {
+            uses_all = true;
+            for (std::size_t k = 0; k < args.size(); ++k)
+            {
+                out += (k == 0 ? "" : " ") + std::string(args[k]);
+            }
+            continue;
+        }
+        const auto index = static_cast<std::size_t>(next - '0');
+        highest = std::max(highest, index);
+        if (index > args.size())
+        {
+            throw UsageError("alias '" + std::string(name) + "' needs argument $" +
+                             std::to_string(index) + ": " + std::string(body));
+        }
+        out += args[index - 1];
+    }
+    if (!uses_all && args.size() > highest)
+    {
+        throw UsageError("alias '" + std::string(name) + "' takes " + std::to_string(highest) +
+                         " argument(s), got " + std::to_string(args.size()) + ": " +
+                         std::string(body));
+    }
+    return out;
+}
+
+} // namespace
+
+bool CommandProcessor::run_alias(const std::string& body, std::string_view name, const Args& args)
+{
+    std::string expanded;
+    try
+    {
+        expanded = expand_alias(body, name, args);
+    }
+    catch (const UsageError& e)
+    {
+        out_ << e.what() << '\n';
+        return false;
+    }
+    if (alias_depth_ >= kMaxAliasDepth)
+    {
+        out_ << "alias '" << name << "': too deep (an alias calling itself?)\n";
+        return false;
+    }
+    ++alias_depth_;
+    Outcome outcome = Outcome::Failed;
+    try
+    {
+        outcome = run_chain(expanded);
+    }
+    catch (...)
+    {
+        --alias_depth_;
+        throw;
+    }
+    --alias_depth_;
+    return outcome == Outcome::Done || outcome == Outcome::Exit;
+}
+
+void CommandProcessor::alias_command(std::string_view line)
+{
+    line = trim(line);
+    if (line.empty())
+    {
+        print_aliases();
+        return;
+    }
+    const auto space = line.find_first_of(" \t");
+    const std::string name(line.substr(0, space));
+    const std::string_view body =
+        space == std::string_view::npos ? std::string_view{} : trim(line.substr(space));
+    if (body.empty())
+    {
+        const auto it = aliases_.find(name);
+        if (it == aliases_.end())
+        {
+            throw UsageError("no alias '" + name + "', see 'aliases'");
+        }
+        out_ << "alias " << it->first << ' ' << it->second << '\n';
+        return;
+    }
+    if (!valid_alias_name(name))
+    {
+        throw UsageError("alias name: a-z, 0-9, '_' and '-' only, got '" + name + "'");
+    }
+    if (find(name) != nullptr)
+    {
+        throw UsageError("'" + name + "' is a command, pick another alias name");
+    }
+    aliases_[name] = std::string(body);
+    save_aliases();
+}
+
+void CommandProcessor::unalias_command(const Args& args)
+{
+    if (args.size() != 1)
+    {
+        throw UsageError("usage: unalias <name>");
+    }
+    if (aliases_.erase(std::string(args[0])) == 0)
+    {
+        throw UsageError("no alias '" + std::string(args[0]) + "', see 'aliases'");
+    }
+    save_aliases();
+}
+
+void CommandProcessor::print_aliases() const
+{
+    if (aliases_.empty())
+    {
+        out_ << "no aliases, define one: alias hop up $1; down $1\n";
+        return;
+    }
+    for (const auto& [name, body] : aliases_)
+    {
+        out_ << "alias " << name << ' ' << body << '\n';
+    }
+}
+
+void CommandProcessor::load_aliases(const std::filesystem::path& file)
+{
+    aliases_file_ = file;
+    std::ifstream in(file);
+    std::string line;
+    for (int number = 1; std::getline(in, line); ++number)
+    {
+        const auto text = trim(line);
+        if (text.empty() || text.front() == '#')
+        {
+            continue;
+        }
+        const auto space = text.find_first_of(" \t");
+        const std::string name(text.substr(0, space));
+        const std::string_view body =
+            space == std::string_view::npos ? std::string_view{} : trim(text.substr(space));
+        if (body.empty() || !valid_alias_name(name) || find(name) != nullptr)
+        {
+            out_ << file.string() << ':' << number << ": bad alias line skipped\n";
+            continue;
+        }
+        aliases_[name] = std::string(body);
+    }
+}
+
+void CommandProcessor::save_aliases()
+{
+    if (aliases_file_.empty())
+    {
+        return;
+    }
+    std::error_code ec;
+    if (aliases_file_.has_parent_path())
+    {
+        std::filesystem::create_directories(aliases_file_.parent_path(), ec);
+    }
+    std::ofstream file(aliases_file_, std::ios::trunc);
+    for (const auto& [name, body] : aliases_)
+    {
+        file << name << ' ' << body << '\n';
+    }
+    file.close();
+    if (!file)
+    {
+        out_ << "warning: aliases not saved to " << aliases_file_.string() << '\n';
+    }
 }
 
 void CommandProcessor::print_help(const Args& args) const

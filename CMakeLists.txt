@@ -71,7 +71,7 @@ target_link_libraries(tello_window PUBLIC tello_video PRIVATE PkgConfig::SDL2)
 tello_strict(tello_window)
 
 # CLI: command layer as a library (tested), the binary adds line editing (replxx).
-add_library(tello_cli_core STATIC src/cli/command_processor.cpp)
+add_library(tello_cli_core STATIC src/cli/command_processor.cpp src/cli/config.cpp)
 target_include_directories(tello_cli_core PUBLIC src)
 target_link_libraries(tello_cli_core PUBLIC tello tello_video)
 tello_strict(tello_cli_core)
@@ -117,6 +117,8 @@ if(TELLO_BUILD_TESTS)
         tests/test_video_stream.cpp
         tests/test_video_window.cpp
         tests/test_keyboard.cpp
+        tests/test_config.cpp
+        tests/test_aliases.cpp
     )
     target_include_directories(tello_tests PRIVATE tests)
     target_link_libraries(tello_tests PRIVATE tello_sim tello_cli_core tello_window PkgConfig::FFMPEG GTest::gtest_main)

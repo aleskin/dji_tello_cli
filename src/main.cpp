@@ -1,6 +1,7 @@
 // tello: interactive controller. Talks to the drone only through drone::DroneBase.
 
 #include "cli/command_processor.hpp"
+#include "cli/config.hpp"
 #include "drone/errors.hpp"
 #include "drone/factory.hpp"
 #include "drone/flight_guard.hpp"
@@ -79,7 +80,27 @@ struct Options
     drone::ConnectionSettings drone;
     std::uint16_t state_port = tello::kStatePort;
     std::string mission; // run this file and exit instead of the interactive shell
+    drone::GuardSettings guard;
 };
+
+// ~/.config/tello/config sets the defaults, the flags parsed after it override them.
+cli::Config apply_config(Options& opt)
+{
+    auto loaded = cli::load_config(cli::config_dir() / "config");
+    for (const auto& w : loaded.warnings)
+    {
+        std::cerr << "tello: " << w << '\n';
+    }
+    const auto& c = loaded.config;
+    opt.drone.host = c.host.value_or(opt.drone.host);
+    opt.drone.port = c.port.value_or(opt.drone.port);
+    opt.state_port = c.state_port.value_or(opt.state_port);
+    opt.drone.video_port = c.video_port.value_or(opt.drone.video_port);
+    opt.drone.model = c.model.value_or(opt.drone.model);
+    opt.guard.warn_battery = c.warn_battery.value_or(opt.guard.warn_battery);
+    opt.guard.land_battery = c.land_battery.value_or(opt.guard.land_battery);
+    return c;
+}
 
 void usage()
 {
@@ -98,6 +119,7 @@ void usage()
            "  --video-port  local port of the camera stream (default 11111)\n"
            "  --model       tello (default) or tello-edu\n"
            "  --mission     run a command file, then exit (stops and lands on error)\n"
+           "Defaults: ~/.config/tello/config ('key = value'), flags override it.\n"
            "Against the simulator: make run-sim\n";
 }
 
@@ -219,7 +241,8 @@ std::optional<int> telemetry_battery(const tello::StateListener* telemetry)
 
 // --mission: same guard and Ctrl+C rules as the shell. Exit code 0 only if every line succeeded.
 int run_mission_file(drone::DroneBase& drone, cli::CommandProcessor& processor,
-                     const tello::StateListener* telemetry, const std::string& path)
+                     const tello::StateListener* telemetry, const drone::GuardSettings& settings,
+                     const std::string& path)
 {
     std::ifstream file(path);
     if (!file)
@@ -229,7 +252,7 @@ int run_mission_file(drone::DroneBase& drone, cli::CommandProcessor& processor,
     }
     std::mutex out_mutex;
     drone::FlightGuard guard(
-        drone, {},
+        drone, settings,
         [telemetry]
         {
             return telemetry_battery(telemetry);
@@ -249,7 +272,7 @@ int run_mission_file(drone::DroneBase& drone, cli::CommandProcessor& processor,
 }
 
 int run(drone::DroneBase& drone, cli::CommandProcessor& processor,
-        const tello::StateListener* telemetry)
+        const tello::StateListener* telemetry, const drone::GuardSettings& settings)
 {
     auto battery = [telemetry]
     {
@@ -259,7 +282,7 @@ int run(drone::DroneBase& drone, cli::CommandProcessor& processor,
     {
         // Piped input: one command line per input line, no editing.
         std::mutex out_mutex;
-        drone::FlightGuard guard(drone, {}, battery,
+        drone::FlightGuard guard(drone, settings, battery,
                                  [&out_mutex](const std::string& m)
                                  {
                                      const std::scoped_lock lock(out_mutex);
@@ -284,7 +307,7 @@ int run(drone::DroneBase& drone, cli::CommandProcessor& processor,
         rx.history_load(history);
     }
     // Keepalive and low-battery landing; messages are printed above the prompt.
-    drone::FlightGuard guard(drone, {}, battery,
+    drone::FlightGuard guard(drone, settings, battery,
                              [&rx](const std::string& m)
                              {
                                  rx.print("! %s\n", m.c_str());
@@ -334,6 +357,7 @@ int main(int argc, char** argv)
     Options opt;
     try
     {
+        const cli::Config config = apply_config(opt);
         if (!parse_options(argc, argv, opt))
         {
             return EXIT_SUCCESS;
@@ -359,15 +383,18 @@ int main(int argc, char** argv)
             {
                 return std::make_unique<video::VideoWindow>(std::move(sources));
             });
+        processor.set_key_layout(config.keys);
+        processor.set_keyboard_speed(config.keyboard_speed.value_or(cli::kDefaultKeyboardSpeed));
+        processor.load_aliases(cli::config_dir() / "aliases");
 
         std::cout << "tello " << tello::version() << " — " << drone->model() << " at "
                   << opt.drone.host << ':' << opt.drone.port << ". 'help' lists commands.\n";
         processor.execute_line("connect"); // SDK mode; on failure 'connect' can be retried
         if (!opt.mission.empty())
         {
-            return run_mission_file(*drone, processor, telemetry.get(), opt.mission);
+            return run_mission_file(*drone, processor, telemetry.get(), opt.guard, opt.mission);
         }
-        return run(*drone, processor, telemetry.get());
+        return run(*drone, processor, telemetry.get(), opt.guard);
     }
     catch (const std::exception& e)
     {
