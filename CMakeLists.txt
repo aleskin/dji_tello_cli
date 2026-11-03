@@ -118,6 +118,7 @@ if(TELLO_BUILD_TESTS)
         tests/test_video_stream.cpp
         tests/test_video_window.cpp
         tests/test_keyboard.cpp
+        tests/test_joystick.cpp
         tests/test_config.cpp
         tests/test_aliases.cpp
         tests/test_position.cpp

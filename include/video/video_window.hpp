@@ -5,6 +5,7 @@
 #include <atomic>
 #include <cstdint>
 #include <mutex>
+#include <optional>
 #include <set>
 #include <string>
 #include <thread>
@@ -30,6 +31,8 @@ public:
     [[nodiscard]] std::string error() const override;
     [[nodiscard]] std::set<std::string> pressed_keys() const override;
     std::vector<std::string> take_key_presses() override;
+    [[nodiscard]] std::optional<Gamepad> gamepad() const override;
+    std::vector<std::string> take_button_presses() override;
 
     // Pictures drawn so far (tests).
     [[nodiscard]] std::int64_t pictures_shown() const
@@ -48,6 +51,8 @@ private:
     std::string error_;
     std::set<std::string> pressed_;
     std::vector<std::string> presses_;
+    std::optional<Gamepad> pad_;
+    std::vector<std::string> button_presses_;
     std::jthread thread_; // last: started after everything it uses exists
 };
 

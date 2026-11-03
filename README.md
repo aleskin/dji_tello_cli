@@ -73,6 +73,7 @@ line separated by `;`; the line stops at the first error.
 | Movement | `forward/back/left/right/up/down <20..500 cm>`, `cw/ccw <1..360>`, `flip <l\|r\|f\|b>`, `speed <10..100>`, `go <x> <y> <z> <speed>`, `return` / `home` (fly back above the takeoff point, then `land`) |
 | Mission | `mission <file>`, `square <cm>` |
 | Keyboard | `keyboard` / `kb` (in flight: fly with the keys in the video window — WASD move, arrows up/down/turn, Esc back to commands), `kbspeed [10..100]` (stick deflection, default 40) |
+| Joystick | `joystick` / `js` (gamepad through the video window, works on the ground too: right stick moves, left stick climbs/turns, `a` takeoff, `b` land, `back`+`start` together emergency, Esc in the window or `guide` back) |
 | Video | `video start` (record the camera to `~/Videos/tello/tello_DATE_TIME.mp4`), `video stop`, `video show` / `video hide` (live window with battery, height and heading), `video status`, `photo` (JPEG of the current picture to `~/Pictures/tello/`) |
 | Telemetry | `battery`, `height`, `wifi`, `get_speed`, `temp`, `time`, `attitude`, `baro`, `tof`, `sdk` (EDU), `sn` (EDU), `state`, `position` / `pos` (x y z from the takeoff point, heading, estimated error) |
 
@@ -133,6 +134,7 @@ model = tello            # or tello-edu
 warn_battery = 15        # percent
 land_battery = 10
 kbspeed = 40             # keyboard mode, 10..100
+js_deadzone = 10         # joystick mode, percent of stick travel ignored, 0..50
 key_forward = w          # also key_back/left/right/up/down/turn_left/turn_right (SDL key names)
 ```
 

@@ -8,6 +8,7 @@
 #include <chrono>
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -107,6 +108,19 @@ void draw_text(SDL_Renderer* renderer, std::string_view text, int x, int y, int 
     SDL_RenderFillRects(renderer, pixels.data(), static_cast<int>(pixels.size()));
 }
 
+std::string button_name(Uint8 button)
+{
+    const char* name =
+        SDL_GameControllerGetStringForButton(static_cast<SDL_GameControllerButton>(button));
+    return name != nullptr ? name : "button" + std::to_string(button);
+}
+
+double axis(SDL_GameController* pad, SDL_GameControllerAxis which, bool invert)
+{
+    const double v = SDL_GameControllerGetAxis(pad, which) / 32767.0;
+    return std::clamp(invert ? -v : v, -1.0, 1.0);
+}
+
 std::string key_name(SDL_Keycode key)
 {
     std::string name = SDL_GetKeyName(key);
@@ -139,6 +153,34 @@ SDL_Rect fit(int pic_w, int pic_h, int out_w, int out_h)
     }
     return {(out_w - w) / 2, (out_h - h) / 2, w, h};
 }
+
+struct SdlControllers
+{
+    bool ok;
+    SdlControllers()
+        : ok(SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER) == 0)
+    {
+    }
+    SdlControllers(const SdlControllers&) = delete;
+    SdlControllers& operator=(const SdlControllers&) = delete;
+    SdlControllers(SdlControllers&&) = delete;
+    SdlControllers& operator=(SdlControllers&&) = delete;
+    ~SdlControllers()
+    {
+        if (ok)
+        {
+            SDL_QuitSubSystem(SDL_INIT_GAMECONTROLLER);
+        }
+    }
+};
+
+struct ControllerDeleter
+{
+    void operator()(SDL_GameController* p) const
+    {
+        SDL_GameControllerClose(p);
+    }
+};
 
 struct SdlVideo
 {
@@ -232,6 +274,18 @@ std::vector<std::string> VideoWindow::take_key_presses()
     return std::exchange(presses_, {});
 }
 
+std::optional<Gamepad> VideoWindow::gamepad() const
+{
+    const std::scoped_lock lock(mutex_);
+    return pad_;
+}
+
+std::vector<std::string> VideoWindow::take_button_presses()
+{
+    const std::scoped_lock lock(mutex_);
+    return std::exchange(button_presses_, {});
+}
+
 void VideoWindow::run(const std::stop_token& stop)
 {
     auto fail = [this](const std::string& what)
@@ -269,6 +323,22 @@ void VideoWindow::run(const std::stop_token& stop)
     }
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
 
+    // The gamepad keeps flying while the terminal has the focus.
+    SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
+    const SdlControllers controllers; // without it the window works, the gamepad does not
+    std::unique_ptr<SDL_GameController, ControllerDeleter> pad;
+    auto open_pad = [&pad, &controllers]
+    {
+        for (int i = 0; controllers.ok && !pad && i < SDL_NumJoysticks(); ++i)
+        {
+            if (SDL_IsGameController(i) == SDL_TRUE)
+            {
+                pad.reset(SDL_GameControllerOpen(i));
+            }
+        }
+    };
+    open_pad();
+
     std::unique_ptr<SDL_Texture, TextureDeleter> texture;
     int tex_w = 0;
     int tex_h = 0;
@@ -300,11 +370,53 @@ void VideoWindow::run(const std::stop_token& stop)
             {
                 pressed_.erase(key_name(event.key.keysym.sym));
             }
+            else if (event.type == SDL_CONTROLLERBUTTONDOWN && pad &&
+                     event.cbutton.which ==
+                         SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(pad.get())))
+            {
+                button_presses_.push_back(button_name(event.cbutton.button));
+            }
+            else if (event.type == SDL_CONTROLLERDEVICEREMOVED && pad &&
+                     event.cdevice.which ==
+                         SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(pad.get())))
+            {
+                pad.reset();
+                open_pad();
+            }
+            else if (event.type == SDL_CONTROLLERDEVICEADDED && !pad)
+            {
+                open_pad();
+            }
             else if (event.type == SDL_WINDOWEVENT &&
                      event.window.event == SDL_WINDOWEVENT_FOCUS_LOST)
             {
                 pressed_.clear(); // key-up events go to the other window now
             }
+        }
+
+        {
+            std::optional<Gamepad> state;
+            if (pad)
+            {
+                Gamepad g;
+                const char* name = SDL_GameControllerName(pad.get());
+                g.name = name != nullptr ? name : "gamepad";
+                g.left_x = axis(pad.get(), SDL_CONTROLLER_AXIS_LEFTX, false);
+                g.left_y = axis(pad.get(), SDL_CONTROLLER_AXIS_LEFTY, true);
+                g.right_x = axis(pad.get(), SDL_CONTROLLER_AXIS_RIGHTX, false);
+                g.right_y = axis(pad.get(), SDL_CONTROLLER_AXIS_RIGHTY, true);
+                for (int b = 0; b < SDL_CONTROLLER_BUTTON_MAX; ++b)
+                {
+                    if (SDL_GameControllerGetButton(pad.get(),
+                                                    static_cast<SDL_GameControllerButton>(b)) != 0)
+                    {
+                        g.buttons.insert(button_name(static_cast<Uint8>(b)));
+                    }
+                }
+                state = std::move(g);
+            }
+            const std::scoped_lock lock(mutex_);
+            pad_ = std::move(state);
         }
 
         if (auto picture = sources_.picture ? sources_.picture(number) : std::nullopt)

@@ -385,6 +385,7 @@ int main(int argc, char** argv)
             });
         processor.set_key_layout(config.keys);
         processor.set_keyboard_speed(config.keyboard_speed.value_or(cli::kDefaultKeyboardSpeed));
+        processor.set_joystick_deadzone(config.joystick_deadzone.value_or(cli::kDefaultDeadzone));
         processor.load_aliases(cli::config_dir() / "aliases");
 
         std::cout << "tello " << tello::version() << " — " << drone->model() << " at "

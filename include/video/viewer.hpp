@@ -28,6 +28,18 @@ struct Osd
 // Telemetry yaw (-180..180) as a compass-style heading 0..359.
 [[nodiscard]] int heading_from_yaw(int yaw);
 
+// A game controller as the window sees it. Sticks are -1..1 with up and right positive, raw
+// (no dead zone); buttons are lowercase SDL names: "a", "b", "start", "back", "dpup".
+struct Gamepad
+{
+    std::string name;
+    double left_x = 0.0;
+    double left_y = 0.0;
+    double right_x = 0.0;
+    double right_y = 0.0;
+    std::set<std::string> buttons; // held down right now
+};
+
 // Where a viewer takes its picture (polled with the number it already shows) and its OSD.
 struct ViewerSources
 {
@@ -57,6 +69,18 @@ public:
 
     // Keys pressed since the last call, in order: a tap shorter than the poll is not lost.
     virtual std::vector<std::string> take_key_presses() = 0;
+
+    // The first connected game controller; nullopt when there is none (or no support).
+    [[nodiscard]] virtual std::optional<Gamepad> gamepad() const
+    {
+        return std::nullopt;
+    }
+
+    // Controller buttons pressed since the last call, in order.
+    virtual std::vector<std::string> take_button_presses()
+    {
+        return {};
+    }
 };
 
 using ViewerFactory = std::function<std::unique_ptr<Viewer>(ViewerSources)>;

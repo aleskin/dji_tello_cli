@@ -25,6 +25,7 @@ struct Config
     std::optional<int> warn_battery;
     std::optional<int> land_battery;
     std::optional<int> keyboard_speed;
+    std::optional<int> joystick_deadzone;
     KeyLayout keys;
 };
 

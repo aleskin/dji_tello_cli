@@ -490,6 +490,21 @@ void CommandProcessor::register_commands()
             }
             keyboard_mode();
         });
+    add({"joystick",
+         {"js"},
+         C::Movement,
+         "joystick",
+         "fly with a gamepad (via the video window): sticks move, a takeoff, b land, "
+         "back+start emergency, Esc/guide back",
+         Capability::Rc},
+        [this](const Args& a)
+        {
+            if (!a.empty())
+            {
+                throw UsageError("usage: joystick");
+            }
+            joystick_mode();
+        });
     add({"kbspeed",
          {},
          C::Movement,
@@ -1151,7 +1166,7 @@ void CommandProcessor::show_window()
 
 video::Osd CommandProcessor::osd() const
 {
-    std::string mode = keyboard_active_.load() ? "KEYBOARD" : "";
+    std::string mode = manual_mode_.load();
     const auto snap = telemetry_ ? telemetry_->latest() : std::nullopt;
     if (!snap || std::chrono::steady_clock::now() - snap->received > std::chrono::seconds(2))
     {
@@ -1170,28 +1185,33 @@ RcSticks sticks_from_keys(const std::set<std::string>& pressed, const KeyLayout&
             axis(layout.up, layout.down), axis(layout.turn_right, layout.turn_left)};
 }
 
-void CommandProcessor::keyboard_mode()
+void CommandProcessor::open_manual_window(std::string_view mode)
 {
-    if (!airborne_)
-    {
-        throw UsageError("keyboard: take off first");
-    }
     if (!viewer_ || !viewer_->is_open())
     {
         show_window();
     }
     if (!viewer_ || !viewer_->is_open())
     {
-        throw UsageError("keyboard: no window" +
+        throw UsageError(std::string(mode) + ": no window" +
                          (viewer_ ? " (" + viewer_->error() + ")" : std::string()));
     }
+}
+
+void CommandProcessor::keyboard_mode()
+{
+    if (!airborne_)
+    {
+        throw UsageError("keyboard: take off first");
+    }
+    open_manual_window("keyboard");
     viewer_->take_key_presses(); // keys typed before the mode started do not count
     const KeyLayout& k = key_layout_;
     out_ << "keyboard mode in the video window: " << k.forward << '/' << k.left << '/' << k.back
          << '/' << k.right << " move, " << k.up << '/' << k.down << " climb, " << k.turn_left << '/'
          << k.turn_right << " turn, Esc back, speed " << keyboard_speed_ << '\n'
          << std::flush;
-    keyboard_active_.store(true);
+    manual_mode_.store("KEYBOARD");
     if (position_)
     {
         position_->on_free_flight();
@@ -1226,12 +1246,155 @@ void CommandProcessor::keyboard_mode()
     }
     catch (...)
     {
-        keyboard_active_.store(false);
+        manual_mode_.store("");
         drone_.rc(0, 0, 0, 0);
         throw;
     }
-    keyboard_active_.store(false);
+    manual_mode_.store("");
     drone_.rc(0, 0, 0, 0); // hover
+    out_ << reason << '\n';
+}
+
+namespace
+{
+
+int stick(double value, int deadzone)
+{
+    const double travel = std::min(std::abs(value) * 100.0, 100.0);
+    if (travel <= deadzone)
+    {
+        return 0;
+    }
+    const auto out = static_cast<int>(std::lround((travel - deadzone) * 100.0 / (100 - deadzone)));
+    return value < 0 ? -out : out;
+}
+
+} // namespace
+
+RcSticks sticks_from_gamepad(const video::Gamepad& pad, int deadzone)
+{
+    return {stick(pad.right_x, deadzone), stick(pad.right_y, deadzone), stick(pad.left_y, deadzone),
+            stick(pad.left_x, deadzone)};
+}
+
+void CommandProcessor::joystick_mode()
+{
+    open_manual_window("joystick");
+    viewer_->take_key_presses();
+    viewer_->take_button_presses();
+    out_ << "joystick mode: right stick moves, left stick climbs/turns, " << PadButtons::takeoff
+         << " takeoff, " << PadButtons::land << " land, " << PadButtons::emergency_1 << '+'
+         << PadButtons::emergency_2 << " emergency, Esc in the window or " << PadButtons::leave
+         << " back\n"
+         << std::flush;
+    manual_mode_.store("JOYSTICK");
+    bool free_flight = false;
+    std::optional<std::string> pad_name;
+    std::optional<std::chrono::steady_clock::time_point> last_sample;
+    std::string reason = "command mode";
+    auto hover = [this]
+    {
+        if (airborne_)
+        {
+            drone_.rc(0, 0, 0, 0);
+        }
+    };
+    try
+    {
+        bool waiting_shown = false;
+        for (;;)
+        {
+            if (interrupted_())
+            {
+                reason = "interrupted";
+                break;
+            }
+            if (!viewer_->is_open())
+            {
+                reason = "window closed, command mode";
+                break;
+            }
+            const auto keys = viewer_->take_key_presses();
+            if (std::ranges::find(keys, "escape") != keys.end())
+            {
+                break;
+            }
+            const auto buttons = viewer_->take_button_presses();
+            const auto pad = viewer_->gamepad();
+            if (!pad)
+            {
+                if (pad_name)
+                {
+                    out_ << "gamepad disconnected" << (airborne_ ? ", hovering" : "") << '\n'
+                         << std::flush;
+                    pad_name.reset();
+                    hover();
+                }
+                else if (!waiting_shown)
+                {
+                    out_ << "no gamepad: connect one (Esc in the window: back)\n" << std::flush;
+                }
+                waiting_shown = true;
+                sleep_(kKeyboardPeriod);
+                continue;
+            }
+            if (pad_name != pad->name)
+            {
+                pad_name = pad->name;
+                out_ << "gamepad: " << pad->name << '\n' << std::flush;
+            }
+            auto pressed = [&buttons](const char* name)
+            {
+                return std::ranges::find(buttons, name) != buttons.end();
+            };
+            if (pressed(PadButtons::leave))
+            {
+                break;
+            }
+            if ((pressed(PadButtons::emergency_1) || pressed(PadButtons::emergency_2)) &&
+                pad->buttons.contains(PadButtons::emergency_1) &&
+                pad->buttons.contains(PadButtons::emergency_2))
+            {
+                execute("emergency");
+                free_flight = false;
+                continue;
+            }
+            if (pressed(PadButtons::takeoff) && !airborne_)
+            {
+                execute("takeoff");
+                free_flight = false;
+                last_sample.reset();
+                continue;
+            }
+            if (pressed(PadButtons::land) && airborne_)
+            {
+                hover();
+                execute("land");
+                free_flight = false;
+                continue;
+            }
+            if (airborne_)
+            {
+                if (!free_flight && position_)
+                {
+                    position_->on_free_flight();
+                }
+                free_flight = true;
+                const RcSticks s = sticks_from_gamepad(*pad, joystick_deadzone_);
+                drone_.rc(s.left_right, s.forward_back, s.up_down, s.yaw);
+                feed_motion(last_sample);
+            }
+            sleep_(kKeyboardPeriod);
+        }
+    }
+    catch (...)
+    {
+        manual_mode_.store("");
+        hover();
+        throw;
+    }
+    manual_mode_.store("");
+    hover();
     out_ << reason << '\n';
 }
 

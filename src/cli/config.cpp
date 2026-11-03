@@ -91,6 +91,10 @@ void apply(Config& c, std::string_view key, std::string_view value)
     {
         c.keyboard_speed = number(value, 10, 100);
     }
+    else if (key == "js_deadzone")
+    {
+        c.joystick_deadzone = number(value, 0, 50);
+    }
     else if (const auto it = keys.find(key); it != keys.end())
     {
         c.keys.*(it->second) = key_name(value);

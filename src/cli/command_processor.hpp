@@ -81,7 +81,22 @@ struct RcSticks
 [[nodiscard]] RcSticks sticks_from_keys(const std::set<std::string>& pressed,
                                         const KeyLayout& layout, int speed);
 
+// Gamepad sticks, mode 2: left stick climbs and turns, right stick moves. Inside the dead zone
+// (percent of the stick travel) an axis is 0; beyond it the deflection is rescaled to 0..100.
+[[nodiscard]] RcSticks sticks_from_gamepad(const video::Gamepad& pad, int deadzone);
+
+// Joystick mode buttons: takeoff on the ground, land in the air, emergency needs both buttons.
+struct PadButtons
+{
+    static constexpr const char* takeoff = "a";
+    static constexpr const char* land = "b";
+    static constexpr const char* emergency_1 = "back";
+    static constexpr const char* emergency_2 = "start";
+    static constexpr const char* leave = "guide";
+};
+
 constexpr int kDefaultKeyboardSpeed = 40;
+constexpr int kDefaultDeadzone = 10;
 constexpr std::chrono::milliseconds kKeyboardPeriod{50}; // rc at 20 Hz
 
 // Interactive command layer. Knows only DroneBase: which model sits behind it decides what works.
@@ -137,6 +152,12 @@ public:
         keyboard_speed_ = speed;
     }
 
+    // Caller validates the range (0..50), see "js_deadzone" in the config.
+    void set_joystick_deadzone(int percent)
+    {
+        joystick_deadzone_ = percent;
+    }
+
     // Aliases are read from this file now and written back after every alias/unalias.
     // A missing file is fine; bad lines are reported and skipped.
     void load_aliases(const std::filesystem::path& file);
@@ -190,6 +211,8 @@ private:
     void save_aliases();
     bool run_alias(const std::string& body, std::string_view name, const Args& args);
     void keyboard_mode();
+    void joystick_mode();
+    void open_manual_window(std::string_view mode);
     void feed_motion(std::optional<std::chrono::steady_clock::time_point>& last);
     void print_position() const;
     void return_home();
@@ -213,7 +236,8 @@ private:
     std::filesystem::path aliases_file_;         // empty: aliases are not saved
     int alias_depth_ = 0;                        // aliases calling aliases
     int keyboard_speed_ = kDefaultKeyboardSpeed;
-    std::atomic<bool> keyboard_active_{false}; // read by the window thread for the OSD
+    int joystick_deadzone_ = kDefaultDeadzone;
+    std::atomic<const char*> manual_mode_{""}; // "KEYBOARD"/"JOYSTICK", read by the window thread
     std::unique_ptr<drone::PositionSource> position_;
     std::unique_ptr<video::Viewer> viewer_; // after video_: it reads the stream, so it goes first
 };

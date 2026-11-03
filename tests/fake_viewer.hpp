@@ -3,6 +3,7 @@
 #include "video/viewer.hpp"
 
 #include <functional>
+#include <optional>
 #include <set>
 #include <string>
 #include <utility>
@@ -52,11 +53,21 @@ public:
         }
         return std::exchange(presses, {});
     }
+    [[nodiscard]] std::optional<video::Gamepad> gamepad() const override
+    {
+        return pad;
+    }
+    std::vector<std::string> take_button_presses() override
+    {
+        return std::exchange(button_presses, {});
+    }
 
     video::ViewerSources sources;
     bool open = true;
     std::set<std::string> pressed;
     std::vector<std::string> presses;
+    std::optional<video::Gamepad> pad;
+    std::vector<std::string> button_presses;
     int polls = 0;
     std::function<void(FakeViewer&)> on_poll;
 
