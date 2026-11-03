@@ -23,7 +23,7 @@ endif()
 find_package(Threads REQUIRED)
 find_package(PkgConfig REQUIRED)
 # FFmpeg: the simulator encodes its test video, the CLI (TEL-00014) decodes the drone's stream.
-pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET libavcodec libavutil)
+pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET libavcodec libavformat libavutil)
 
 # Strict warnings for our own targets only: third-party code (GoogleTest) is built as is.
 function(tello_strict target)
@@ -57,10 +57,16 @@ add_executable(tello-sim sim/main.cpp)
 target_link_libraries(tello-sim PRIVATE tello_sim)
 tello_strict(tello-sim)
 
+# Video: camera stream reader and MP4 recorder, vendor-neutral.
+add_library(tello_video STATIC src/video/video_stream.cpp)
+target_include_directories(tello_video PUBLIC include)
+target_link_libraries(tello_video PUBLIC Threads::Threads PRIVATE PkgConfig::FFMPEG)
+tello_strict(tello_video)
+
 # CLI: command layer as a library (tested), the binary adds line editing (replxx).
 add_library(tello_cli_core STATIC src/cli/command_processor.cpp)
 target_include_directories(tello_cli_core PUBLIC src)
-target_link_libraries(tello_cli_core PUBLIC tello)
+target_link_libraries(tello_cli_core PUBLIC tello tello_video)
 tello_strict(tello_cli_core)
 
 include(FetchContent)
@@ -101,6 +107,7 @@ if(TELLO_BUILD_TESTS)
         tests/test_flight_guard.cpp
         tests/test_failures.cpp
         tests/test_sim_video.cpp
+        tests/test_video_stream.cpp
     )
     target_include_directories(tello_tests PRIVATE tests)
     target_link_libraries(tello_tests PRIVATE tello_sim tello_cli_core PkgConfig::FFMPEG GTest::gtest_main)

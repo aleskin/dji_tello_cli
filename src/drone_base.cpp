@@ -53,6 +53,8 @@ std::string_view to_string(Capability c)
         return "barometer";
     case Capability::Tof:
         return "tof";
+    case Capability::Video:
+        return "video";
     }
     return "?";
 }
@@ -157,6 +159,18 @@ std::string DroneBase::tof_distance()
 void DroneBase::keepalive()
 {
     unsupported("keepalive");
+}
+void DroneBase::start_video()
+{
+    unsupported("video");
+}
+void DroneBase::stop_video()
+{
+    unsupported("video");
+}
+std::string DroneBase::video_source() const
+{
+    unsupported("video");
 }
 
 std::chrono::steady_clock::duration DroneBase::idle_for() const

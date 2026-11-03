@@ -139,7 +139,11 @@ VideoStreamer::VideoStreamer(std::string host, std::uint16_t port, std::atomic<i
         throw TelloError("video: out of memory");
     }
 
-    thread_ = std::jthread([this](const std::stop_token& stop) { run(stop); });
+    thread_ = std::jthread(
+        [this](const std::stop_token& stop)
+        {
+            run(stop);
+        });
 }
 
 VideoStreamer::~VideoStreamer()
@@ -177,13 +181,13 @@ void VideoStreamer::run(const std::stop_token& stop)
                                                      static_cast<std::size_t>(packet->size));
             for (std::size_t off = 0; off < data.size(); off += settings_.max_datagram)
             {
-                const auto chunk = data.subspan(off, std::min(settings_.max_datagram,
-                                                              data.size() - off));
+                const auto chunk =
+                    data.subspan(off, std::min(settings_.max_datagram, data.size() - off));
                 try
                 {
-                    socket_.send_to(std::string_view(reinterpret_cast<const char*>(chunk.data()),
-                                                     chunk.size()),
-                                    host_, port_);
+                    socket_.send_to(
+                        std::string_view(reinterpret_cast<const char*>(chunk.data()), chunk.size()),
+                        host_, port_);
                 }
                 catch (const TelloError&)
                 {

@@ -50,6 +50,7 @@ enum class Capability
     Attitude,
     Barometer,
     Tof,
+    Video,
 };
 
 [[nodiscard]] std::string_view to_string(Capability c);
@@ -102,6 +103,12 @@ public:
     [[nodiscard]] virtual std::string attitude();
     [[nodiscard]] virtual std::string barometer();
     [[nodiscard]] virtual std::string tof_distance();
+
+    // Camera stream: start/stop it on the drone; video_source() is where a reader (FFmpeg URL)
+    // gets it, e.g. "udp://0.0.0.0:11111".
+    virtual void start_video();
+    virtual void stop_video();
+    [[nodiscard]] virtual std::string video_source() const;
 
     // Cheapest command that resets the drone's auto-land timer (Tello: 15 s of silence).
     virtual void keepalive();

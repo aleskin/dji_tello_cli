@@ -100,6 +100,8 @@ std::string_view to_string(Category c)
         return "Flight";
     case Category::Movement:
         return "Movement";
+    case Category::Video:
+        return "Video";
     case Category::Mission:
         return "Mission";
     case Category::Telemetry:
@@ -374,6 +376,18 @@ void CommandProcessor::register_commands()
             }
         });
 
+    // Video.
+    add({"video",
+         {},
+         C::Video,
+         "video start|stop|status",
+         "record the camera to an MP4 in " + session_.video_dir.string(),
+         Capability::Video},
+        [this](const Args& a)
+        {
+            video_command(a);
+        });
+
     // Telemetry: reads, named like the SDK queries without '?' ('battery?' works too).
     auto read_int = [this](const char* name, const char* help, Capability cap,
                            int (drone::DroneBase::*fn)(), const char* unit)
@@ -599,7 +613,7 @@ void CommandProcessor::print_help(const Args& args) const
     out_ << "Commands for " << drone_.model()
          << " (several in one line: 'takeoff; up 50; land'):\n";
     for (const auto cat : {Category::System, Category::Flight, Category::Movement,
-                           Category::Mission, Category::Telemetry})
+                           Category::Mission, Category::Video, Category::Telemetry})
     {
         out_ << '\n' << to_string(cat) << ":\n";
         for (const auto& e : entries_)
@@ -666,6 +680,66 @@ void CommandProcessor::print_info()
          {
              return drone_.serial_number();
          });
+}
+
+void CommandProcessor::video_command(const Args& args)
+{
+    const std::string_view what = args.empty() ? "status" : args[0];
+    if (args.size() > 1 || (what != "start" && what != "stop" && what != "status"))
+    {
+        throw UsageError("usage: video start|stop|status");
+    }
+    if (what == "start")
+    {
+        if (!video_)
+        {
+            drone_.start_video();
+            video_ = std::make_unique<video::VideoStream>(drone_.video_source());
+        }
+        const auto path = video::default_recording_path(session_.video_dir);
+        video_->start_recording(path);
+        out_ << "recording to " << path.string() << " (from the next keyframe)\n";
+        return;
+    }
+    if (what == "stop")
+    {
+        if (!video_)
+        {
+            out_ << "video is off\n";
+            return;
+        }
+        const auto saved = video_->stop_recording();
+        const std::string error = video_->status().error;
+        video_.reset();
+        out_ << (saved.empty() ? std::string("nothing recorded") : "saved " + saved.string())
+             << (error.empty() ? "" : " (" + error + ")") << '\n';
+        drone_.stop_video(); // after the file is safe: a lost reply must not lose the video
+        return;
+    }
+    if (!video_)
+    {
+        out_ << "video is off\n";
+        return;
+    }
+    const auto s = video_->status();
+    out_ << (s.receiving ? "receiving" : "no video data") << ", " << s.packets << " frames";
+    if (s.width > 0)
+    {
+        out_ << ", " << s.width << 'x' << s.height;
+    }
+    out_ << '\n';
+    if (!s.recording.empty())
+    {
+        out_ << "recording to " << s.recording << '\n';
+    }
+    else if (s.waiting_for_keyframe)
+    {
+        out_ << "recording starts at the next keyframe\n";
+    }
+    if (!s.error.empty())
+    {
+        out_ << "error: " << s.error << '\n';
+    }
 }
 
 void CommandProcessor::print_state() const

@@ -114,6 +114,8 @@ include/tello/        layer 2 (family) and layer 3 (models)
   udp_transport.hpp   UdpTransport — real UDP socket (POSIX)
   state.hpp           DroneState + parse_state() for the telemetry string
   state_listener.hpp  StateListener — background UDP receiver of telemetry
+include/video/        vendor-neutral camera stream (FFmpeg): the drone only gives video_source()
+  video_stream.hpp    VideoStream — reads H.264, records MP4 without re-encoding
 src/                  library implementation + CLI main
 sim/                  tello-sim: fake drone (library + executable), used by tests and by hand
 tests/                GoogleTest: MockTransport unit tests + simulator integration tests

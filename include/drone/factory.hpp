@@ -14,9 +14,10 @@ namespace drone
 
 struct ConnectionSettings
 {
-    std::string model = "tello"; // see known_models()
-    std::string host;            // empty = the model's default address
-    std::uint16_t port = 0;      // 0 = the model's default command port
+    std::string model = "tello";  // see known_models()
+    std::string host;             // empty = the model's default address
+    std::uint16_t port = 0;       // 0 = the model's default command port
+    std::uint16_t video_port = 0; // 0 = the model's default (Tello: 11111)
     std::chrono::milliseconds action_timeout{20'000};
     std::chrono::milliseconds query_timeout{3'000};
 };

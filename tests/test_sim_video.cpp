@@ -56,12 +56,11 @@ Decoded decode(const std::string& stream)
     const AVCodec* codec = avcodec_find_decoder(AV_CODEC_ID_H264);
     std::unique_ptr<AVCodecParserContext, void (*)(AVCodecParserContext*)> parser(
         av_parser_init(AV_CODEC_ID_H264), av_parser_close);
-    std::unique_ptr<AVCodecContext, void (*)(AVCodecContext*)> ctx(
-        avcodec_alloc_context3(codec),
-        [](AVCodecContext* p)
-        {
-            avcodec_free_context(&p);
-        });
+    std::unique_ptr<AVCodecContext, void (*)(AVCodecContext*)> ctx(avcodec_alloc_context3(codec),
+                                                                   [](AVCodecContext* p)
+                                                                   {
+                                                                       avcodec_free_context(&p);
+                                                                   });
     std::unique_ptr<AVPacket, void (*)(AVPacket*)> packet(av_packet_alloc(),
                                                           [](AVPacket* p)
                                                           {

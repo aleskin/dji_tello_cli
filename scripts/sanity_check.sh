@@ -21,7 +21,7 @@ fi
 mkdir -p "$OUT_DIR"
 
 # Our translation units only: tests are left out (GoogleTest macros drown the report).
-mapfile -t SOURCES < <(cd "$ROOT" && ls src/*.cpp src/cli/*.cpp sim/*.cpp)
+mapfile -t SOURCES < <(cd "$ROOT" && ls src/*.cpp src/cli/*.cpp src/video/*.cpp sim/*.cpp)
 
 status=0
 {

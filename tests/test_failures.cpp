@@ -148,7 +148,7 @@ TEST_F(FaultySim, CliStopsChainOnRefusedCommand)
     config.fail_commands = {"flip"};
     start(config);
     std::ostringstream out;
-    cli::CommandProcessor cli(*drone, out, {"127.0.0.1", sim->command_port(), 0});
+    cli::CommandProcessor cli(*drone, out, {"127.0.0.1", sim->command_port(), 0, {}});
     cli.execute_line("connect; takeoff; flip l; land");
     EXPECT_NE(out.str().find("error: flip l: error"), std::string::npos);
     EXPECT_TRUE(sim->model().flying); // 'land' after the failure was not run
@@ -161,7 +161,7 @@ TEST_F(FaultySim, MissionLandsOnRefusedCommand)
     config.fail_commands = {"flip"};
     start(config);
     std::ostringstream out;
-    cli::CommandProcessor cli(*drone, out, {"127.0.0.1", sim->command_port(), 0});
+    cli::CommandProcessor cli(*drone, out, {"127.0.0.1", sim->command_port(), 0, {}});
     std::istringstream plan("connect\ntakeoff\nflip b\nforward 100\n");
     EXPECT_FALSE(cli.run_mission(plan, "flips"));
     EXPECT_FALSE(sim->model().flying);

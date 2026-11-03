@@ -2,10 +2,13 @@
 
 #include "drone/drone_base.hpp"
 #include "tello/state_listener.hpp"
+#include "video/video_stream.hpp"
 
 #include <chrono>
+#include <filesystem>
 #include <functional>
 #include <istream>
+#include <memory>
 #include <optional>
 #include <ostream>
 #include <string>
@@ -21,6 +24,7 @@ enum class Category
     Flight,
     Movement,
     Mission,
+    Video,
     Telemetry
 };
 
@@ -39,7 +43,8 @@ struct SessionInfo
 {
     std::string host;
     std::uint16_t command_port = 0;
-    std::uint16_t state_port = 0; // 0 = telemetry off
+    std::uint16_t state_port = 0;    // 0 = telemetry off
+    std::filesystem::path video_dir; // recordings go here (~/Videos/tello)
 };
 
 // Interactive command layer. Knows only DroneBase: which model sits behind it decides what works.
@@ -106,6 +111,7 @@ private:
     void print_help(const Args& args) const;
     void print_info();
     void print_state() const;
+    void video_command(const Args& args);
 
     drone::DroneBase& drone_;
     std::ostream& out_;
@@ -118,6 +124,7 @@ private:
     bool exit_requested_ = false;
     bool airborne_ = false;
     bool in_mission_ = false;
+    std::unique_ptr<video::VideoStream> video_; // between "video start" and "video stop"
 };
 
 [[nodiscard]] std::string_view to_string(Category c);

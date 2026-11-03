@@ -23,11 +23,20 @@ std::unique_ptr<DroneBase> make_drone(const ConnectionSettings& settings)
         settings.host.empty() ? std::string(tello::kDroneHost) : settings.host,
         settings.port == 0 ? tello::kCommandPort : settings.port);
     const tello::DroneTimeouts timeouts{settings.action_timeout, settings.query_timeout};
+    std::unique_ptr<tello::TelloFamily> drone;
     if (classic)
     {
-        return std::make_unique<tello::TelloClassic>(std::move(transport), timeouts);
+        drone = std::make_unique<tello::TelloClassic>(std::move(transport), timeouts);
     }
-    return std::make_unique<tello::TelloEdu>(std::move(transport), timeouts);
+    else
+    {
+        drone = std::make_unique<tello::TelloEdu>(std::move(transport), timeouts);
+    }
+    if (settings.video_port != 0)
+    {
+        drone->set_video_port(settings.video_port);
+    }
+    return drone;
 }
 
 } // namespace drone

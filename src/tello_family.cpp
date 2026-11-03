@@ -1,6 +1,7 @@
 #include "tello/tello_family.hpp"
 
 #include "tello/errors.hpp"
+#include "tello/udp_transport.hpp"
 
 #include <cctype>
 #include <charconv>
@@ -62,6 +63,7 @@ char to_sdk(FlipDirection d)
 TelloFamily::TelloFamily(std::shared_ptr<ITransport> transport, DroneTimeouts timeouts)
     : transport_(std::move(transport))
     , timeouts_(timeouts)
+    , video_port_(kVideoPort)
 {
     if (!transport_)
     {
@@ -71,12 +73,12 @@ TelloFamily::TelloFamily(std::shared_ptr<ITransport> transport, DroneTimeouts ti
 
 std::set<Capability> TelloFamily::capabilities() const
 {
-    return {Capability::Takeoff,    Capability::Land,      Capability::Emergency,
-            Capability::Move,       Capability::Rotate,    Capability::Flip,
-            Capability::SetSpeed,   Capability::GoTo,      Capability::Rc,
-            Capability::Battery,    Capability::Height,    Capability::Temperature,
-            Capability::FlightTime, Capability::Wifi,      Capability::Speed,
-            Capability::Attitude,   Capability::Barometer, Capability::Tof};
+    return {
+        Capability::Takeoff,    Capability::Land,    Capability::Emergency, Capability::Move,
+        Capability::Rotate,     Capability::Flip,    Capability::SetSpeed,  Capability::GoTo,
+        Capability::Rc,         Capability::Battery, Capability::Height,    Capability::Temperature,
+        Capability::FlightTime, Capability::Wifi,    Capability::Speed,     Capability::Attitude,
+        Capability::Barometer,  Capability::Tof,     Capability::Video};
 }
 
 void TelloFamily::connect()
@@ -190,6 +192,26 @@ std::string TelloFamily::tof_distance()
 void TelloFamily::keepalive()
 {
     expect_ok("command");
+}
+
+void TelloFamily::start_video()
+{
+    expect_ok("streamon");
+}
+
+void TelloFamily::stop_video()
+{
+    expect_ok("streamoff");
+}
+
+std::string TelloFamily::video_source() const
+{
+    return "udp://0.0.0.0:" + std::to_string(video_port_);
+}
+
+void TelloFamily::set_video_port(std::uint16_t port)
+{
+    video_port_ = port;
 }
 
 void TelloFamily::expect_ok(const std::string& command)

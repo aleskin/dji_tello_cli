@@ -4,6 +4,7 @@
 #include "tello/transport.hpp"
 
 #include <chrono>
+#include <cstdint>
 #include <memory>
 #include <set>
 #include <string>
@@ -78,6 +79,12 @@ public:
 
     void keepalive() override; // "command": harmless in SDK mode, resets the 15 s timer
 
+    void start_video() override; // "streamon"
+    void stop_video() override;  // "streamoff"
+    [[nodiscard]] std::string video_source() const override;
+    // The drone always streams to port 11111 of this PC; the simulator can use another one.
+    void set_video_port(std::uint16_t port);
+
 protected:
     TelloFamily(std::shared_ptr<ITransport> transport, DroneTimeouts timeouts);
 
@@ -88,6 +95,7 @@ protected:
 private:
     std::shared_ptr<ITransport> transport_;
     DroneTimeouts timeouts_;
+    std::uint16_t video_port_;
 };
 
 // Layer 3: the original Tello on its last firmware, SDK 1.3 (no stop, sdk?, sn?, mission pads).

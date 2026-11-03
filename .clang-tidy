@@ -25,4 +25,4 @@ Checks: >
 # avoid-const-or-ref-data-members: non-owning references to collaborators (drone, ostream) in
 #   non-copyable classes are the intent.
 # avoid-magic-numbers: SDK limits are named once; tests and defaults are literal on purpose.
-HeaderFilterRegex: '.*/(include/drone|include/tello|src|src/cli|sim)/[^/]+$'
+HeaderFilterRegex: '.*/(include/drone|include/tello|include/video|src|src/cli|src/video|sim)/[^/]+$'

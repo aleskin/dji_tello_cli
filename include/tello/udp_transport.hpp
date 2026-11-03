@@ -13,6 +13,7 @@ namespace tello
 inline constexpr const char* kDroneHost = "192.168.10.1";
 inline constexpr std::uint16_t kCommandPort = 8889;
 inline constexpr std::uint16_t kStatePort = 8890;
+inline constexpr std::uint16_t kVideoPort = 11111; // H.264 after "streamon", on this PC
 
 // Commands over UDP. The drone answers to the sender's address, so the local port is ephemeral.
 class UdpTransport final : public ITransport

@@ -82,7 +82,8 @@ struct Options
 void usage()
 {
     std::cout
-        << "usage: tello [--host IP] [--port N] [--state-port N] [--model M] [--mission FILE]\n"
+        << "usage: tello [--host IP] [--port N] [--state-port N] [--video-port N] [--model M]\n"
+           "             [--mission FILE]\n"
            "  --host        drone address (default "
         << tello::kDroneHost
         << ")\n"
@@ -92,6 +93,7 @@ void usage()
            "  --state-port  local telemetry port (default "
         << tello::kStatePort
         << ", 0 = off)\n"
+           "  --video-port  local port of the camera stream (default 11111)\n"
            "  --model       tello (default) or tello-edu\n"
            "  --mission     run a command file, then exit (stops and lands on error)\n"
            "Against the simulator: make run-sim\n";
@@ -134,6 +136,10 @@ bool parse_options(int argc, char** argv, Options& opt)
         {
             opt.state_port = parse_port(arg, value());
         }
+        else if (arg == "--video-port")
+        {
+            opt.drone.video_port = parse_port(arg, value());
+        }
         else if (arg == "--mission")
         {
             opt.mission = value();
@@ -161,6 +167,13 @@ bool parse_options(int argc, char** argv, Options& opt)
         opt.drone.port = tello::kCommandPort;
     }
     return true;
+}
+
+// Recordings: ~/Videos/tello (created on the first "video start").
+std::filesystem::path videos_dir()
+{
+    const char* home = std::getenv("HOME");
+    return std::filesystem::path(home ? home : ".") / "Videos" / "tello";
 }
 
 std::string history_path()
@@ -330,13 +343,13 @@ int main(int argc, char** argv)
             telemetry = std::make_unique<tello::StateListener>("0.0.0.0", opt.state_port);
         }
         install_sigint();
-        cli::CommandProcessor processor(*drone, std::cout,
-                                        {opt.drone.host, opt.drone.port, opt.state_port},
-                                        telemetry.get(), interruptible_sleep,
-                                        []
-                                        {
-                                            return g_interrupted.load();
-                                        });
+        cli::CommandProcessor processor(
+            *drone, std::cout, {opt.drone.host, opt.drone.port, opt.state_port, videos_dir()},
+            telemetry.get(), interruptible_sleep,
+            []
+            {
+                return g_interrupted.load();
+            });
 
         std::cout << "tello " << tello::version() << " — " << drone->model() << " at "
                   << opt.drone.host << ':' << opt.drone.port << ". 'help' lists commands.\n";
