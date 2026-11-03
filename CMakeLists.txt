@@ -21,6 +21,9 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 find_package(Threads REQUIRED)
+find_package(PkgConfig REQUIRED)
+# FFmpeg: the simulator encodes its test video, the CLI (TEL-00014) decodes the drone's stream.
+pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET libavcodec libavutil)
 
 # Strict warnings for our own targets only: third-party code (GoogleTest) is built as is.
 function(tello_strict target)
@@ -45,9 +48,9 @@ target_compile_definitions(tello PRIVATE TELLO_VERSION="${TELLO_VERSION}")
 tello_strict(tello)
 
 # Fake drone: a library (linked into the tests) and the tello-sim executable.
-add_library(tello_sim STATIC sim/simulator.cpp)
+add_library(tello_sim STATIC sim/simulator.cpp sim/video_streamer.cpp)
 target_include_directories(tello_sim PUBLIC sim)
-target_link_libraries(tello_sim PUBLIC tello)
+target_link_libraries(tello_sim PUBLIC tello PRIVATE PkgConfig::FFMPEG)
 tello_strict(tello_sim)
 
 add_executable(tello-sim sim/main.cpp)
@@ -97,9 +100,10 @@ if(TELLO_BUILD_TESTS)
         tests/test_command_processor.cpp
         tests/test_flight_guard.cpp
         tests/test_failures.cpp
+        tests/test_sim_video.cpp
     )
     target_include_directories(tello_tests PRIVATE tests)
-    target_link_libraries(tello_tests PRIVATE tello_sim tello_cli_core GTest::gtest_main)
+    target_link_libraries(tello_tests PRIVATE tello_sim tello_cli_core PkgConfig::FFMPEG GTest::gtest_main)
     tello_strict(tello_tests)
     include(GoogleTest)
     gtest_discover_tests(tello_tests)

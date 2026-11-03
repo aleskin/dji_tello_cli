@@ -164,6 +164,16 @@ std::optional<std::string> SimLogic::handle(std::string_view command, Clock::tim
         model_.height_cm = 0;
         return kOk;
     }
+    if (name == "streamon")
+    {
+        model_.streaming = true;
+        return kOk;
+    }
+    if (name == "streamoff")
+    {
+        model_.streaming = false;
+        return kOk;
+    }
     if (name == "stop")
     {
         return kOk;
@@ -423,6 +433,7 @@ void Simulator::serve_commands(const std::stop_token& stop)
                 continue;
             }
             std::optional<std::string> reply;
+            bool streaming = false;
             {
                 const std::scoped_lock lock(mutex_);
                 reply = logic_.handle(datagram->data, Clock::now());
@@ -430,7 +441,9 @@ void Simulator::serve_commands(const std::stop_token& stop)
                 {
                     client_host_ = datagram->from_host;
                 }
+                streaming = logic_.model().streaming;
             }
+            update_video(streaming);
             if (config_.on_command)
             {
                 config_.on_command(datagram->data, reply);
@@ -459,6 +472,27 @@ void Simulator::serve_commands(const std::stop_token& stop)
             // A failed send must not kill the simulator: the client simply times out.
             ++send_errors_;
         }
+    }
+}
+
+void Simulator::update_video(bool wanted)
+{
+    if (wanted && !video_ && config_.video_port != 0)
+    {
+        try
+        {
+            video_ =
+                std::make_unique<VideoStreamer>(client_host_, config_.video_port, video_frames_);
+        }
+        catch (const TelloError&)
+        {
+            // No encoder: "streamon" still says ok, like a drone with a broken camera.
+            ++send_errors_;
+        }
+    }
+    else if (!wanted && video_)
+    {
+        video_.reset();
     }
 }
 

@@ -37,6 +37,9 @@ make sim                                     # terminal 1: the fake drone, logs 
 ./build/tello --host 127.0.0.1 --port 8889   # terminal 2
 ```
 
+After `streamon` the simulator sends a moving H.264 test picture to UDP 11111, the same format
+as the drone's camera (960×720, 30 fps); `ffplay -fflags nobuffer udp://127.0.0.1:11111` shows it.
+
 `tello-sim --help` lists its options: drone model (`--model tello|tello-edu`), starting battery and
 accelerated drain (`--battery`, `--drain`), and failure modes (`--drop`, `--delay`, `--fail-cmd`).
 

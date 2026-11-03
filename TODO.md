@@ -24,7 +24,7 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 | TEL-00017 | cli: прямое управление с клавиатуры (rc) | 📂 Открыта | 8 |
 | TEL-00019 | cli: алиасы с параметрами и конфиг-файл | 📂 Открыта | 5 |
 | TEL-00020 | core: позиция — базовый класс, счисление по командам, return-to-home | 📂 Открыта | 8 |
-| TEL-00024 | sim: эмуляция видеопотока | 📂 Открыта | 5 |
+| TEL-00024 | sim: эмуляция видеопотока | ✅ Выполнена | 5 |
 | TEL-00031 | build: разобрать замечания make sanity-check | ✅ Выполнена | 3 |
 | TEL-00032 | cli: Ctrl+C под make run-sim не должен ронять симулятор | ✅ Выполнена | 2 |
 
@@ -81,7 +81,7 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 ### 🧪 Simulator
 
 ### [TEL-00024] sim: эмуляция видеопотока
-- **Status:** Открыта
+- **Status:** ✅ Выполнена
 - **Complexity:** 5
 - **Description:** `tello-sim --video` шлёт на 11111 тестовую H.264-картинку (FFmpeg testsrc),
   чтобы проверять TEL-00014..16 без дрона.

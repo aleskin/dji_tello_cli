@@ -24,9 +24,12 @@ void usage()
 {
     std::cout
         << "usage: tello-sim [--port N] [--state-port N] [--battery PCT] [--drain PCT_PER_MIN]"
-           " [--model M] [--drop PCT] [--delay MS] [--fail-cmd NAME]... [--quiet]\n"
+           " [--video-port N] [--model M] [--drop PCT] [--delay MS] [--fail-cmd NAME]...\n"
+           "                 [--quiet]\n"
            "  --port        command port on 127.0.0.1 (default 8889, 0 = ephemeral)\n"
            "  --state-port  telemetry port on the client's host (default 8890, 0 = off)\n"
+           "  --video-port  H.264 test picture to the client after streamon (default 11111, 0 = "
+           "off)\n"
            "  --battery     battery at start, percent (default 100)\n"
            "  --drain       battery drain in the air, percent per minute (default 8;\n"
            "                raise it to test low-battery handling quickly)\n"
@@ -74,6 +77,10 @@ int main(int argc, char** argv)
             else if (arg == "--state-port")
             {
                 config.state_port = parse_port(arg, value());
+            }
+            else if (arg == "--video-port")
+            {
+                config.video_port = parse_port(arg, value());
             }
             else if (arg == "--model")
             {

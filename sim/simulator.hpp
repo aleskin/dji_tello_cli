@@ -2,11 +2,13 @@
 
 #include "tello/state.hpp"
 #include "tello/udp_socket.hpp"
+#include "video_streamer.hpp"
 
 #include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <random>
@@ -40,6 +42,7 @@ struct SimConfig
     std::string host = "127.0.0.1";
     std::uint16_t command_port = 8889;           // 0 = ephemeral, see Simulator::command_port()
     std::uint16_t state_port = 8890;             // on the client's host; 0 = no telemetry
+    std::uint16_t video_port = 11111;            // on the client's host after streamon; 0 = off
     double battery = 100.0;                      // percent at start
     double drain_per_minute = 8.0;               // in the air; ~12 min flight like the real drone
     std::chrono::milliseconds idle_land{15'000}; // the drone lands after this silence
@@ -65,6 +68,7 @@ struct SimModel
     int yaw = 0;       // -180..180, clockwise positive
     int speed = 10;    // cm/s, set by "speed"
     double flight_s = 0.0;
+    bool streaming = false; // between "streamon" and "streamoff"
     Clock::time_point last_command{};
 };
 
@@ -116,10 +120,15 @@ public:
     {
         return dropped_.load();
     }
+    [[nodiscard]] int video_frames_sent() const
+    {
+        return video_frames_.load();
+    }
 
 private:
     void serve_commands(const std::stop_token& stop);
     void serve_state(const std::stop_token& stop);
+    void update_video(bool wanted); // command thread only
 
     SimConfig config_;
     UdpSocket commands_;
@@ -131,7 +140,9 @@ private:
     std::mt19937 random_;     // command thread only
     std::atomic<int> dropped_{0};
     std::atomic<int> send_errors_{0}; // replies or telemetry the OS refused to send
-    std::jthread command_thread_;     // threads last: started after everything they use exists
+    std::atomic<int> video_frames_{0};
+    std::unique_ptr<VideoStreamer> video_; // command thread only; destroyed after the threads
+    std::jthread command_thread_;          // threads last: started after everything they use exists
     std::jthread state_thread_;
 };
 
