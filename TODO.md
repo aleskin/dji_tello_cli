@@ -17,15 +17,34 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 
 | ID | Задача | Статус | Сл. |
 |---|---|---|---|
+| TEL-00018 | cli: геймпад / джойстик | Открыта | 5 |
+| TEL-00021 | cli: позиционные фигуры (camera_to_center, круг) | Открыта | 5 |
+| TEL-00022 | build: пакеты .deb и .rpm | Открыта | 5 |
 | TEL-00013 | Купить батарею и первый реальный полёт по чек-листу | ❗ Владелец | 2 |
 
 ## 📝 Детали задач
 
 ### 🔧 Build & Infrastructure
 
+### [TEL-00022] build: пакеты .deb и .rpm
+- **Status:** Открыта
+- **Complexity:** 5
+- **Description:** CPack: `make package` → `.deb`/`.rpm` с `tello` и `tello-sim`.
+
 ### 🛰️ Core
 
 ### 💻 CLI
+
+### [TEL-00018] cli: геймпад / джойстик
+- **Status:** Открыта
+- **Complexity:** 5
+- **Description:** Режим `joystick` через SDL2 GameController, мёртвая зона, кнопки takeoff/land/emergency.
+
+### [TEL-00021] cli: позиционные фигуры (camera_to_center, круг)
+- **Status:** Открыта
+- **Complexity:** 5
+- **Description:** Перенос `camera_to_center` / `camera_from_center` из Rust; облёт точки по кругу
+  через `curve`/`go`, радиус по высоте, вращение во время облёта.
 
 ### 🧪 Simulator
 

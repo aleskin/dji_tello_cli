@@ -7,24 +7,6 @@ commands — drone-side photo storage, `exposure`, `jpeg` — were dropped or re
 
 ## 📝 Задачи
 
-### [TEL-00018] cli: геймпад / джойстик
-- **Status:** Идея
-- **Complexity:** 5
-- **Description:** Режим `joystick` через SDL2 GameController, мёртвая зона, кнопки takeoff/land/emergency.
-- **Блокирована:** TEL-00017
-
-### [TEL-00021] cli: позиционные фигуры (camera_to_center, круг)
-- **Status:** Идея
-- **Complexity:** 5
-- **Description:** Перенос `camera_to_center` / `camera_from_center` из Rust; облёт точки по кругу
-  через `curve`/`go`, радиус по высоте, вращение во время облёта.
-- **Блокирована:** TEL-00020
-
-### [TEL-00022] build: пакеты .deb и .rpm
-- **Status:** Идея
-- **Complexity:** 5
-- **Description:** CPack: `make package` → `.deb`/`.rpm` с `tello` и `tello-sim`.
-
 ### [TEL-00023] core: Tello EDU — mission pads и режим точки доступа
 - **Status:** Закрыта (EDU покупать не планируется)
 - **Complexity:** 8
