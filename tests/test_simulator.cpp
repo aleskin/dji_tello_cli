@@ -2,6 +2,7 @@
 
 #include "simulator.hpp"
 #include "tello/tello_family.hpp"
+#include "drone/errors.hpp"
 #include "tello/errors.hpp"
 #include "tello/state_listener.hpp"
 #include "tello/udp_transport.hpp"
@@ -120,6 +121,31 @@ TEST_F(SimLogicTest, LandsWhenBatteryRunsOut) {
     EXPECT_EQ(low.handle("takeoff", now), "error Battery low");
 }
 
+TEST_F(SimLogicTest, ClassicModelLacksSdk2Commands) {
+    cmd("command");
+    EXPECT_EQ(cmd("stop"), "unknown command: stop");
+    EXPECT_EQ(cmd("sdk?"), "unknown command: sdk?");
+    EXPECT_EQ(cmd("sn?"), "unknown command: sn?");
+    EXPECT_EQ(cmd("battery?"), "100");
+    EXPECT_EQ(logic.telemetry().find("mid:"), std::string::npos);
+    EXPECT_TRUE(parse_state(logic.telemetry()).has_value());
+}
+
+TEST_F(SimLogicTest, EduModelHasSdk2Commands) {
+    config.model = SimModelKind::TelloEdu;
+    SimLogic edu{config};
+    edu.handle("command", now);
+    EXPECT_EQ(edu.handle("stop", now), "ok");
+    EXPECT_EQ(edu.handle("sdk?", now), "20");
+    EXPECT_EQ(edu.telemetry().rfind("mid:-1;", 0), 0u);
+}
+
+TEST(SimModelTest, ParsesFactoryNames) {
+    EXPECT_EQ(parse_sim_model("tello"), SimModelKind::Tello);
+    EXPECT_EQ(parse_sim_model("tello-edu"), SimModelKind::TelloEdu);
+    EXPECT_FALSE(parse_sim_model("mavic").has_value());
+}
+
 TEST_F(SimLogicTest, CommandsKeepItInTheAir) {
     cmd("command");
     cmd("takeoff");
@@ -140,8 +166,10 @@ protected:
           transport(std::make_shared<UdpTransport>("127.0.0.1", sim.command_port())),
           drone(transport, DroneTimeouts{milliseconds(1000), milliseconds(500)}) {}
 
-    static SimConfig make_config(std::uint16_t state_port) {
+    static SimConfig make_config(std::uint16_t state_port,
+                                 SimModelKind model = SimModelKind::TelloEdu) {
         SimConfig c;
+        c.model = model;
         c.command_port = 0;  // ephemeral: tests never use fixed ports
         c.state_port = state_port;
         c.state_period = milliseconds(20);
@@ -213,6 +241,34 @@ TEST_F(SimulatorUdpTest, TelemetryArrives) {
     ASSERT_TRUE(snapshot.has_value());
     EXPECT_EQ(snapshot->state.h, 80);
     EXPECT_EQ(snapshot->state.bat, 100);
+}
+
+// The owner's drone: classic model against the classic simulator, through the base class only.
+TEST(SimulatorClassicTest, ClassicModelOverUdp) {
+    StateListener listener("127.0.0.1", 0);
+    SimConfig config;
+    config.command_port = 0;
+    config.state_port = listener.local_port();
+    config.state_period = milliseconds(20);
+    Simulator sim(config);
+    auto transport = std::make_shared<UdpTransport>("127.0.0.1", sim.command_port());
+    std::unique_ptr<drone::DroneBase> drone = std::make_unique<TelloClassic>(
+        transport, DroneTimeouts{milliseconds(1000), milliseconds(500)});
+
+    drone->connect();
+    drone->takeoff();
+    drone->move(Direction::Up, 50);
+    EXPECT_EQ(drone->height_cm(), 130);
+    EXPECT_THROW(drone->hover(), drone::NotSupported);  // refused locally, never sent
+    EXPECT_EQ(transport->request("stop", milliseconds(500)), "unknown command: stop");
+    drone->land();
+    EXPECT_FALSE(sim.model().flying);
+
+    const auto deadline = std::chrono::steady_clock::now() + seconds(2);
+    while (!listener.latest() && std::chrono::steady_clock::now() < deadline) {
+        std::this_thread::sleep_for(milliseconds(10));
+    }
+    EXPECT_TRUE(listener.latest().has_value());  // SDK 1.3 telemetry parses too
 }
 
 }  // namespace

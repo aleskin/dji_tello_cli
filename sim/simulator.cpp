@@ -62,6 +62,16 @@ const std::string kNotFlying = "error Not flying";
 
 }  // namespace
 
+std::optional<SimModelKind> parse_sim_model(std::string_view name) {
+    if (name == "tello") {
+        return SimModelKind::Tello;
+    }
+    if (name == "tello-edu") {
+        return SimModelKind::TelloEdu;
+    }
+    return std::nullopt;
+}
+
 SimLogic::SimLogic(const SimConfig& config) : config_(config) {
     model_.battery = config.battery;
 }
@@ -86,6 +96,10 @@ std::optional<std::string> SimLogic::handle(std::string_view command, Clock::tim
 
     if (name == "command") {
         return kOk;
+    }
+    // SDK 2.0 additions: SDK 1.3 firmware does not know them.
+    if (config_.model == SimModelKind::Tello && (name == "stop" || name == "sdk?" || name == "sn?")) {
+        return "unknown command: " + std::string(command);
     }
     if (name == "takeoff") {
         if (model_.flying) {
@@ -276,6 +290,10 @@ DroneState SimLogic::state() const {
     return s;
 }
 
+std::string SimLogic::telemetry() const {
+    return format_state(state(), config_.model == SimModelKind::TelloEdu);
+}
+
 Simulator::Simulator(SimConfig config)
     : config_(std::move(config)),
       commands_(config_.host, config_.command_port),
@@ -331,7 +349,7 @@ void Simulator::serve_state(const std::stop_token& stop) {
             const std::lock_guard lock(mutex_);
             logic_.tick(Clock::now());
             if (!client_host_.empty() && config_.state_port != 0) {
-                packet = format_state(logic_.state());
+                packet = logic_.telemetry();
                 host = client_host_;
             }
         }

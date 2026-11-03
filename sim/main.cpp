@@ -20,12 +20,13 @@ namespace {
 
 void usage() {
     std::cout << "usage: tello-sim [--port N] [--state-port N] [--battery PCT] [--drain PCT_PER_MIN]"
-                 " [--quiet]\n"
+                 " [--model M] [--quiet]\n"
                  "  --port        command port on 127.0.0.1 (default 8889, 0 = ephemeral)\n"
                  "  --state-port  telemetry port on the client's host (default 8890, 0 = off)\n"
                  "  --battery     battery at start, percent (default 100)\n"
                  "  --drain       battery drain in the air, percent per minute (default 8;\n"
                  "                raise it to test low-battery handling quickly)\n"
+                 "  --model       tello (SDK 1.3, default) or tello-edu (SDK 2.0)\n"
                  "  --quiet       do not print commands and replies\n";
 }
 
@@ -56,6 +57,14 @@ int main(int argc, char** argv) {
                 config.command_port = parse_port(arg, value());
             } else if (arg == "--state-port") {
                 config.state_port = parse_port(arg, value());
+            } else if (arg == "--model") {
+                const std::string name = value();
+                const auto model = tello::sim::parse_sim_model(name);
+                if (!model) {
+                    throw tello::TelloError("--model: unknown model '" + name +
+                                            "' (known: tello, tello-edu)");
+                }
+                config.model = *model;
             } else if (arg == "--battery") {
                 config.battery = std::stod(value());
             } else if (arg == "--drain") {
@@ -93,7 +102,8 @@ int main(int argc, char** argv) {
 
     try {
         tello::sim::Simulator sim(config);
-        std::cout << "tello-sim " << tello::version() << " on 127.0.0.1:" << sim.command_port()
+        std::cout << "tello-sim " << tello::version() << " (" << (config.model == tello::sim::SimModelKind::Tello ? "tello" : "tello-edu")
+                  << ") on 127.0.0.1:" << sim.command_port()
                   << ", telemetry to client port " << config.state_port << ", Ctrl+C to stop"
                   << std::endl;
         int sig = 0;

@@ -33,6 +33,7 @@ struct DroneState {
 [[nodiscard]] std::optional<DroneState> parse_state(std::string_view text);
 
 // Inverse of parse_state, in the drone's field order (used by the simulator).
-[[nodiscard]] std::string format_state(const DroneState& state);
+// SDK 2.0 drones (Tello EDU) prefix the packet with mission-pad fields: mid, x, y, z, mpry.
+[[nodiscard]] std::string format_state(const DroneState& state, bool mission_pad_fields = true);
 
 }  // namespace tello

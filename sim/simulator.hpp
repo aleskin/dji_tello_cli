@@ -19,7 +19,15 @@ using Clock = std::chrono::steady_clock;
 // Called from the command thread for every datagram: command text and reply (nullopt = silent).
 using CommandLog = std::function<void(std::string_view, const std::optional<std::string>&)>;
 
+// Which drone to imitate. Tello: SDK 1.3 firmware (the owner's drone, no updates),
+// TelloEdu: SDK 2.0 (stop, sdk?, sn?, mission-pad telemetry fields).
+enum class SimModelKind { Tello, TelloEdu };
+
+// "tello" / "tello-edu" (same names as drone::make_drone); std::nullopt otherwise.
+[[nodiscard]] std::optional<SimModelKind> parse_sim_model(std::string_view name);
+
 struct SimConfig {
+    SimModelKind model = SimModelKind::Tello;
     std::string host = "127.0.0.1";
     std::uint16_t command_port = 8889;  // 0 = ephemeral, see Simulator::command_port()
     std::uint16_t state_port = 8890;    // on the client's host; 0 = no telemetry
@@ -57,6 +65,7 @@ public:
 
     [[nodiscard]] const SimModel& model() const { return model_; }
     [[nodiscard]] DroneState state() const;
+    [[nodiscard]] std::string telemetry() const;  // one packet as this model sends it
 
 private:
     std::string move(std::string_view direction, int cm);

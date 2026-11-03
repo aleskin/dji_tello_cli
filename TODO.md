@@ -26,7 +26,7 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 | TEL-00012 | sim: режимы сбоев (потери пакетов, error, таймауты) | 📂 Открыта | 3 |
 | TEL-00013 | Купить батарею и первый реальный полёт по чек-листу | ❗ Владелец | 2 |
 | TEL-00028 | core: иерархия дронов база → семейство → модель | ✅ Выполнена | 8 |
-| TEL-00029 | sim: модель дрона в симуляторе (tello / tello-edu) | 📂 Открыта | 3 |
+| TEL-00029 | sim: модель дрона в симуляторе (tello / tello-edu) | ✅ Выполнена | 3 |
 
 ## 📝 Детали задач
 
@@ -106,7 +106,7 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
   (всегда `error`), `--battery N`. Тесты: ретраи и таймауты транспорта, поведение CLI при ошибке.
 
 ### [TEL-00029] sim: модель дрона в симуляторе (tello / tello-edu)
-- **Status:** Открыта
+- **Status:** ✅ Выполнена
 - **Complexity:** 3
 - **Description:** `tello-sim --model tello|tello-edu`: классический Tello (SDK 1.3) отвечает на
   `stop`/`sdk?`/`sn?` как старая прошивка, телеметрия без полей mission pad (`mid`, `x`, `y`, `z`, `mpry`).
