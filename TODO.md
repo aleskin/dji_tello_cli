@@ -25,7 +25,7 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 | TEL-00019 | cli: алиасы с параметрами и конфиг-файл | 📂 Открыта | 5 |
 | TEL-00020 | core: позиция — базовый класс, счисление по командам, return-to-home | 📂 Открыта | 8 |
 | TEL-00024 | sim: эмуляция видеопотока | 📂 Открыта | 5 |
-| TEL-00031 | build: разобрать замечания make sanity-check | 📂 Открыта | 3 |
+| TEL-00031 | build: разобрать замечания make sanity-check | ✅ Выполнена | 3 |
 | TEL-00032 | cli: Ctrl+C под make run-sim не должен ронять симулятор | 📂 Открыта | 2 |
 
 ## 📝 Детали задач
@@ -33,7 +33,7 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 ### 🔧 Build & Infrastructure
 
 ### [TEL-00031] build: разобрать замечания make sanity-check
-- **Status:** Открыта
+- **Status:** ✅ Выполнена
 - **Complexity:** 3
 - **Description:** 132 замечания clang-tidy (v0.0.3). Исправить реальные: `bugprone-*`
   (empty-catch с комментарием, throwing-static-init), `performance-*`, `scoped_lock`, `std::array`

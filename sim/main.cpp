@@ -143,9 +143,9 @@ int main(int argc, char** argv)
         config.on_command =
             [&out_mutex](std::string_view command, const std::optional<std::string>& reply)
         {
-            const std::lock_guard lock(out_mutex);
-            std::cout << "<- " << command << "\n-> " << (reply ? *reply : "(no reply)")
-                      << std::endl;
+            const std::scoped_lock lock(out_mutex);
+            std::cout << "<- " << command << "\n-> " << (reply ? *reply : "(no reply)") << '\n'
+                      << std::flush;
         };
     }
 
@@ -162,7 +162,8 @@ int main(int argc, char** argv)
         std::cout << "tello-sim " << tello::version() << " ("
                   << (config.model == tello::sim::SimModelKind::Tello ? "tello" : "tello-edu")
                   << ") on 127.0.0.1:" << sim.command_port() << ", telemetry to client port "
-                  << config.state_port << ", Ctrl+C to stop" << std::endl;
+                  << config.state_port << ", Ctrl+C to stop" << '\n'
+                  << std::flush;
         int sig = 0;
         sigwait(&signals, &sig);
     }

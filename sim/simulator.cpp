@@ -50,9 +50,14 @@ std::optional<int> to_int(std::string_view s)
     return value;
 }
 
-bool in_range(std::optional<int> v, int min, int max)
+// The value if it is present and within min..max, otherwise std::nullopt.
+std::optional<int> in_range(std::optional<int> v, int min, int max)
 {
-    return v && *v >= min && *v <= max;
+    if (!v || *v < min || *v > max)
+    {
+        return std::nullopt;
+    }
+    return v;
 }
 
 int normalize_yaw(int yaw)
@@ -69,9 +74,9 @@ int normalize_yaw(int yaw)
     return yaw;
 }
 
-const std::string kOk = "ok";
-const std::string kOutOfRange = "out of range";
-const std::string kNotFlying = "error Not flying";
+constexpr const char* kOk = "ok";
+constexpr const char* kOutOfRange = "out of range";
+constexpr const char* kNotFlying = "error Not flying";
 
 } // namespace
 
@@ -166,8 +171,9 @@ std::optional<std::string> SimLogic::handle(std::string_view command, Clock::tim
     if (name == "up" || name == "down" || name == "left" || name == "right" || name == "forward" ||
         name == "back")
     {
-        const auto cm = args.size() == 2 ? to_int(args[1]) : std::nullopt;
-        if (!in_range(cm, kMinMoveCm, kMaxMoveCm))
+        const auto cm =
+            in_range(args.size() == 2 ? to_int(args[1]) : std::nullopt, kMinMoveCm, kMaxMoveCm);
+        if (!cm)
         {
             return kOutOfRange;
         }
@@ -179,8 +185,9 @@ std::optional<std::string> SimLogic::handle(std::string_view command, Clock::tim
     }
     if (name == "cw" || name == "ccw")
     {
-        const auto deg = args.size() == 2 ? to_int(args[1]) : std::nullopt;
-        if (!in_range(deg, kMinRotateDeg, kMaxRotateDeg))
+        const auto deg = in_range(args.size() == 2 ? to_int(args[1]) : std::nullopt, kMinRotateDeg,
+                                  kMaxRotateDeg);
+        if (!deg)
         {
             return kOutOfRange;
         }
@@ -210,8 +217,9 @@ std::optional<std::string> SimLogic::handle(std::string_view command, Clock::tim
     }
     if (name == "speed")
     {
-        const auto v = args.size() == 2 ? to_int(args[1]) : std::nullopt;
-        if (!in_range(v, kMinSpeed, kMaxSpeed))
+        const auto v =
+            in_range(args.size() == 2 ? to_int(args[1]) : std::nullopt, kMinSpeed, kMaxSpeed);
+        if (!v)
         {
             return kOutOfRange;
         }
@@ -224,13 +232,14 @@ std::optional<std::string> SimLogic::handle(std::string_view command, Clock::tim
         {
             return kOutOfRange;
         }
-        const auto x = to_int(args[1]);
-        const auto y = to_int(args[2]);
-        const auto z = to_int(args[3]);
-        const auto v = to_int(args[4]);
-        if (!in_range(x, -kMaxGoCm, kMaxGoCm) || !in_range(y, -kMaxGoCm, kMaxGoCm) ||
-            !in_range(z, -kMaxGoCm, kMaxGoCm) || !in_range(v, kMinSpeed, kMaxSpeed) ||
-            (std::abs(*x) < kMinGoSpan && std::abs(*y) < kMinGoSpan && std::abs(*z) < kMinGoSpan))
+        const auto x = in_range(to_int(args[1]), -kMaxGoCm, kMaxGoCm);
+        const auto y = in_range(to_int(args[2]), -kMaxGoCm, kMaxGoCm);
+        const auto z = in_range(to_int(args[3]), -kMaxGoCm, kMaxGoCm);
+        if (!x || !y || !z || !in_range(to_int(args[4]), kMinSpeed, kMaxSpeed))
+        {
+            return kOutOfRange;
+        }
+        if (std::abs(*x) < kMinGoSpan && std::abs(*y) < kMinGoSpan && std::abs(*z) < kMinGoSpan)
         {
             return kOutOfRange;
         }
@@ -398,7 +407,7 @@ Simulator::~Simulator()
 
 SimModel Simulator::model() const
 {
-    const std::lock_guard lock(mutex_);
+    const std::scoped_lock lock(mutex_);
     return logic_.model();
 }
 
@@ -415,7 +424,7 @@ void Simulator::serve_commands(const std::stop_token& stop)
             }
             std::optional<std::string> reply;
             {
-                const std::lock_guard lock(mutex_);
+                const std::scoped_lock lock(mutex_);
                 reply = logic_.handle(datagram->data, Clock::now());
                 if (logic_.model().sdk_mode && client_host_.empty())
                 {
@@ -448,6 +457,7 @@ void Simulator::serve_commands(const std::stop_token& stop)
         catch (const TelloError&)
         {
             // A failed send must not kill the simulator: the client simply times out.
+            ++send_errors_;
         }
     }
 }
@@ -460,7 +470,7 @@ void Simulator::serve_state(const std::stop_token& stop)
         std::optional<std::string> packet;
         std::string host;
         {
-            const std::lock_guard lock(mutex_);
+            const std::scoped_lock lock(mutex_);
             logic_.tick(Clock::now());
             if (!client_host_.empty() && config_.state_port != 0)
             {
@@ -477,6 +487,7 @@ void Simulator::serve_state(const std::stop_token& stop)
             catch (const TelloError&)
             {
                 // Nobody listening yet is fine: UDP telemetry is best effort.
+                ++send_errors_;
             }
         }
     }

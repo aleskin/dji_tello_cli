@@ -11,7 +11,12 @@ namespace tello
 class ITransport
 {
 public:
+    ITransport() = default;
     virtual ~ITransport() = default;
+    ITransport(const ITransport&) = delete;
+    ITransport& operator=(const ITransport&) = delete;
+    ITransport(ITransport&&) = delete;
+    ITransport& operator=(ITransport&&) = delete;
 
     // Send a command and wait for the reply (trimmed). Throws TelloError on timeout.
     virtual std::string request(std::string_view command, std::chrono::milliseconds timeout) = 0;

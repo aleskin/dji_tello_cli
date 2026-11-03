@@ -31,6 +31,8 @@ public:
 
     StateListener(const StateListener&) = delete;
     StateListener& operator=(const StateListener&) = delete;
+    StateListener(StateListener&&) = delete;
+    StateListener& operator=(StateListener&&) = delete;
 
     [[nodiscard]] std::uint16_t local_port() const
     {

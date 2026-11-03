@@ -97,6 +97,7 @@ private:
 
     // True on success, false when the chain must stop.
     bool execute(std::string_view command);
+    bool run_mission_lines(std::istream& in, std::string_view name);
     [[nodiscard]] const Entry* find(std::string_view name) const;
     [[nodiscard]] bool available(const CommandInfo& info) const;
 

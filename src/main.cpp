@@ -32,6 +32,8 @@ namespace
 {
 
 // Set by SIGINT while a command runs (outside the prompt Ctrl+C is a signal, not a key).
+// A signal handler can only reach a global; a lock-free atomic is the one type it may touch.
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 std::atomic<bool> g_interrupted{false};
 static_assert(std::atomic<bool>::is_always_lock_free);
 
@@ -219,8 +221,8 @@ int run_mission_file(drone::DroneBase& drone, cli::CommandProcessor& processor,
         },
         [&out_mutex](const std::string& m)
         {
-            const std::lock_guard lock(out_mutex);
-            std::cout << "! " << m << std::endl;
+            const std::scoped_lock lock(out_mutex);
+            std::cout << "! " << m << '\n' << std::flush;
         });
     g_interrupted.store(false);
     const bool ok = processor.run_mission(file, path);
@@ -245,8 +247,8 @@ int run(drone::DroneBase& drone, cli::CommandProcessor& processor,
         drone::FlightGuard guard(drone, {}, battery,
                                  [&out_mutex](const std::string& m)
                                  {
-                                     const std::lock_guard lock(out_mutex);
-                                     std::cout << "! " << m << std::endl;
+                                     const std::scoped_lock lock(out_mutex);
+                                     std::cout << "! " << m << '\n' << std::flush;
                                  });
         std::string line;
         while (std::getline(std::cin, line))

@@ -63,6 +63,8 @@ public:
     virtual ~DroneBase() = default;
     DroneBase(const DroneBase&) = delete;
     DroneBase& operator=(const DroneBase&) = delete;
+    DroneBase(DroneBase&&) = delete;
+    DroneBase& operator=(DroneBase&&) = delete;
 
     [[nodiscard]] virtual std::string family() const = 0; // "Tello"
     [[nodiscard]] virtual std::string model() const = 0;  // "Tello (SDK 1.3)"

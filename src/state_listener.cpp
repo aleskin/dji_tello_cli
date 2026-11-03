@@ -24,7 +24,7 @@ StateListener::~StateListener()
 
 std::optional<StateSnapshot> StateListener::latest() const
 {
-    const std::lock_guard lock(mutex_);
+    const std::scoped_lock lock(mutex_);
     return latest_;
 }
 
@@ -49,7 +49,7 @@ void StateListener::run(const std::stop_token& stop)
         }
         if (auto state = parse_state(datagram->data))
         {
-            const std::lock_guard lock(mutex_);
+            const std::scoped_lock lock(mutex_);
             latest_ = StateSnapshot{*state, std::chrono::steady_clock::now()};
         }
     }

@@ -33,6 +33,8 @@ public:
 
     FlightGuard(const FlightGuard&) = delete;
     FlightGuard& operator=(const FlightGuard&) = delete;
+    FlightGuard(FlightGuard&&) = delete;
+    FlightGuard& operator=(FlightGuard&&) = delete;
 
 private:
     void run(const std::stop_token& stop);

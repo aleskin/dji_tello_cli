@@ -38,8 +38,8 @@ sockaddr_in make_addr(const std::string& host, std::uint16_t port)
 } // namespace
 
 UdpSocket::UdpSocket(const std::string& bind_host, std::uint16_t bind_port)
+    : fd_(::socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC, 0))
 {
-    fd_ = ::socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC, 0);
     if (fd_ < 0)
     {
         throw_errno("socket");

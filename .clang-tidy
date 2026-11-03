@@ -10,10 +10,19 @@ Checks: >
   -cppcoreguidelines-pro-type-reinterpret-cast,
   -cppcoreguidelines-pro-type-vararg,
   -cppcoreguidelines-pro-bounds-pointer-arithmetic,
-  -bugprone-easily-swappable-parameters
+  -bugprone-easily-swappable-parameters,
+  -modernize-use-designated-initializers,
+  -cppcoreguidelines-pro-bounds-avoid-unchecked-container-access,
+  -performance-enum-size,
+  -cppcoreguidelines-avoid-const-or-ref-data-members
 # reinterpret-cast: sockaddr casts are how POSIX sockets work.
 # pro-type-vararg: snprintf in format_state, the drone's telemetry format.
 # pointer-arithmetic: data()+size() ranges for std::from_chars.
 # easily-swappable-parameters: SDK signatures such as go(x, y, z, speed) and rc(a, b, c, d).
+# use-designated-initializers: positional aggregates (command table, timeouts) read fine as is.
+# avoid-unchecked-container-access: indices are checked against size() right before use.
+# enum-size: a few small enums, the int base costs nothing here.
+# avoid-const-or-ref-data-members: non-owning references to collaborators (drone, ostream) in
+#   non-copyable classes are the intent.
 # avoid-magic-numbers: SDK limits are named once; tests and defaults are literal on purpose.
 HeaderFilterRegex: '.*/(include/drone|include/tello|src|src/cli|sim)/[^/]+$'

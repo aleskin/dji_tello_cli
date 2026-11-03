@@ -4,6 +4,7 @@
 #include "tello/version.hpp"
 
 #include <algorithm>
+#include <array>
 #include <charconv>
 #include <cmath>
 #include <fstream>
@@ -224,10 +225,14 @@ void CommandProcessor::register_commands()
         });
 
     // Movement.
-    const std::pair<const char*, Direction> moves[] = {
-        {"forward", Direction::Forward}, {"back", Direction::Back}, {"left", Direction::Left},
-        {"right", Direction::Right},     {"up", Direction::Up},     {"down", Direction::Down},
-    };
+    const std::array<std::pair<const char*, Direction>, 6> moves{{
+        {"forward", Direction::Forward},
+        {"back", Direction::Back},
+        {"left", Direction::Left},
+        {"right", Direction::Right},
+        {"up", Direction::Up},
+        {"down", Direction::Down},
+    }};
     for (const auto& [name, dir] : moves)
     {
         const std::string usage = std::string(name) + " <cm>";
@@ -418,8 +423,7 @@ const CommandProcessor::Entry* CommandProcessor::find(std::string_view name) con
 {
     for (const auto& e : entries_)
     {
-        if (e.info.name == name ||
-            std::find(e.info.aliases.begin(), e.info.aliases.end(), name) != e.info.aliases.end())
+        if (e.info.name == name || std::ranges::find(e.info.aliases, name) != e.info.aliases.end())
         {
             return &e;
         }
@@ -467,14 +471,21 @@ bool CommandProcessor::run_mission(std::istream& in, std::string_view name)
         return false;
     }
     in_mission_ = true;
-    struct Reset
+    try
     {
-        bool& flag;
-        ~Reset()
-        {
-            flag = false;
-        }
-    } reset{in_mission_};
+        const bool ok = run_mission_lines(in, name);
+        in_mission_ = false;
+        return ok;
+    }
+    catch (...)
+    {
+        in_mission_ = false;
+        throw;
+    }
+}
+
+bool CommandProcessor::run_mission_lines(std::istream& in, std::string_view name)
+{
 
     std::string line;
     for (int number = 1; std::getline(in, line); ++number)

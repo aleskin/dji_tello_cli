@@ -1,5 +1,6 @@
 #include "tello/state.hpp"
 
+#include <array>
 #include <charconv>
 #include <cstdio>
 #include <string>
@@ -11,8 +12,10 @@ namespace
 
 template <typename T> bool parse_number(std::string_view text, T& out)
 {
-    const char* end = text.data() + text.size();
-    const auto [ptr, ec] = std::from_chars(text.data(), end, out);
+    // from_chars takes an explicit [first, last) range: no null terminator is needed.
+    const char* const first = text.data();
+    const char* const end = first + text.size();
+    const auto [ptr, ec] = std::from_chars(first, end, out);
     return ec == std::errc() && ptr == end;
 }
 
@@ -29,18 +32,26 @@ bool assign(DroneState& s, std::string_view key, std::string_view value, bool& k
         std::string_view name;
         double DroneState::* member;
     };
-    static constexpr IntField kInts[] = {
-        {"pitch", &DroneState::pitch}, {"roll", &DroneState::roll},   {"yaw", &DroneState::yaw},
-        {"vgx", &DroneState::vgx},     {"vgy", &DroneState::vgy},     {"vgz", &DroneState::vgz},
-        {"templ", &DroneState::templ}, {"temph", &DroneState::temph}, {"tof", &DroneState::tof},
-        {"h", &DroneState::h},         {"bat", &DroneState::bat},     {"time", &DroneState::time},
-    };
-    static constexpr RealField kReals[] = {
+    static constexpr std::array<IntField, 12> kInts{{
+        {"pitch", &DroneState::pitch},
+        {"roll", &DroneState::roll},
+        {"yaw", &DroneState::yaw},
+        {"vgx", &DroneState::vgx},
+        {"vgy", &DroneState::vgy},
+        {"vgz", &DroneState::vgz},
+        {"templ", &DroneState::templ},
+        {"temph", &DroneState::temph},
+        {"tof", &DroneState::tof},
+        {"h", &DroneState::h},
+        {"bat", &DroneState::bat},
+        {"time", &DroneState::time},
+    }};
+    static constexpr std::array<RealField, 4> kReals{{
         {"baro", &DroneState::baro},
         {"agx", &DroneState::agx},
         {"agy", &DroneState::agy},
         {"agz", &DroneState::agz},
-    };
+    }};
 
     for (const auto& f : kInts)
     {
@@ -107,15 +118,15 @@ std::optional<DroneState> parse_state(std::string_view text)
 
 std::string format_state(const DroneState& s, bool mission_pad_fields)
 {
-    char buf[512];
-    std::snprintf(buf, sizeof(buf),
+    std::array<char, 512> buf{};
+    std::snprintf(buf.data(), buf.size(),
                   "%spitch:%d;roll:%d;yaw:%d;vgx:%d;vgy:%d;vgz:%d;"
                   "templ:%d;temph:%d;tof:%d;h:%d;bat:%d;baro:%.2f;time:%d;agx:%.2f;agy:%.2f;"
                   "agz:%.2f;\r\n",
                   mission_pad_fields ? "mid:-1;x:0;y:0;z:0;mpry:0,0,0;" : "", s.pitch, s.roll,
                   s.yaw, s.vgx, s.vgy, s.vgz, s.templ, s.temph, s.tof, s.h, s.bat, s.baro, s.time,
                   s.agx, s.agy, s.agz);
-    return buf;
+    return buf.data();
 }
 
 } // namespace tello

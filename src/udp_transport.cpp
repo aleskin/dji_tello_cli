@@ -32,7 +32,7 @@ UdpTransport::UdpTransport(std::string host, std::uint16_t port)
 
 std::string UdpTransport::request(std::string_view command, std::chrono::milliseconds timeout)
 {
-    const std::lock_guard lock(mutex_);
+    const std::scoped_lock lock(mutex_);
 
     // A reply that arrived after the previous request timed out would be taken
     // as the answer to this one: drop whatever is already queued.
@@ -67,7 +67,7 @@ std::string UdpTransport::request(std::string_view command, std::chrono::millise
 
 void UdpTransport::send(std::string_view command)
 {
-    const std::lock_guard lock(mutex_);
+    const std::scoped_lock lock(mutex_);
     socket_.send_to(command, host_, port_);
 }
 

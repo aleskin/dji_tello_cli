@@ -104,6 +104,8 @@ public:
 
     Simulator(const Simulator&) = delete;
     Simulator& operator=(const Simulator&) = delete;
+    Simulator(Simulator&&) = delete;
+    Simulator& operator=(Simulator&&) = delete;
 
     [[nodiscard]] std::uint16_t command_port() const
     {
@@ -125,11 +127,11 @@ private:
     std::uint16_t command_port_;
     mutable std::mutex mutex_;
     SimLogic logic_;
-    std::string client_host_;
-    std::mt19937 random_; // command thread only
-    std::atomic<int> dropped_{
-        0}; // sender of "command": telemetry goes there, like on the real drone
-    std::jthread command_thread_; // threads last: started after everything they use exists
+    std::string client_host_; // sender of "command": telemetry goes there, like on the real drone
+    std::mt19937 random_;     // command thread only
+    std::atomic<int> dropped_{0};
+    std::atomic<int> send_errors_{0}; // replies or telemetry the OS refused to send
+    std::jthread command_thread_;     // threads last: started after everything they use exists
     std::jthread state_thread_;
 };
 
