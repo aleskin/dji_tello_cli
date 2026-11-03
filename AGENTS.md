@@ -169,4 +169,6 @@ client's state port, auto-lands after the 15 s silence. Every feature must be ch
 ## Owner's working style
 - Owner chats in Russian; answers in Russian, code/comments/commits in English.
 - Owner thinks out loud, ideas arrive incrementally — record them as tasks first.
+- A task that cannot be done or understood yet goes back to the backlog (`TODO-next-sprint.md`)
+  with the reason in its description, instead of being forced or guessed.
 - Minimum manual steps; automate through `make`.
