@@ -20,6 +20,7 @@
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <memory>
 #include <mutex>
@@ -63,15 +64,17 @@ bool run_line(cli::CommandProcessor& processor, const std::string& line) {
 struct Options {
     drone::ConnectionSettings drone;
     std::uint16_t state_port = tello::kStatePort;
+    std::string mission;  // run this file and exit instead of the interactive shell
 };
 
 void usage() {
-    std::cout << "usage: tello [--host IP] [--port N] [--state-port N] [--model M]\n"
+    std::cout << "usage: tello [--host IP] [--port N] [--state-port N] [--model M] [--mission FILE]\n"
                  "  --host        drone address (default " << tello::kDroneHost << ")\n"
                  "  --port        drone command port (default " << tello::kCommandPort << ")\n"
                  "  --state-port  local telemetry port (default " << tello::kStatePort
               << ", 0 = off)\n"
                  "  --model       tello (default) or tello-edu\n"
+                 "  --mission     run a command file, then exit (stops and lands on error)\n"
                  "Against the simulator: make run-sim\n";
 }
 
@@ -100,6 +103,8 @@ bool parse_options(int argc, char** argv, Options& opt) {
             opt.drone.port = parse_port(arg, value());
         } else if (arg == "--state-port") {
             opt.state_port = parse_port(arg, value());
+        } else if (arg == "--mission") {
+            opt.mission = value();
         } else if (arg == "--model") {
             opt.drone.model = value();
         } else if (arg == "--help" || arg == "-h") {
@@ -149,6 +154,29 @@ std::optional<int> telemetry_battery(const tello::StateListener* telemetry) {
         return std::nullopt;
     }
     return snap->state.bat;
+}
+
+// --mission: same guard and Ctrl+C rules as the shell. Exit code 0 only if every line succeeded.
+int run_mission_file(drone::DroneBase& drone, cli::CommandProcessor& processor,
+                     const tello::StateListener* telemetry, const std::string& path) {
+    std::ifstream file(path);
+    if (!file) {
+        std::cerr << "tello: cannot open mission '" << path << "'\n";
+        return EXIT_FAILURE;
+    }
+    std::mutex out_mutex;
+    drone::FlightGuard guard(
+        drone, {}, [telemetry] { return telemetry_battery(telemetry); },
+        [&out_mutex](const std::string& m) {
+            const std::lock_guard lock(out_mutex);
+            std::cout << "! " << m << std::endl;
+        });
+    g_interrupted.store(false);
+    const bool ok = processor.run_mission(file, path);
+    if (g_interrupted.exchange(false)) {
+        processor.on_interrupt();
+    }
+    return ok ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
 int run(drone::DroneBase& drone, cli::CommandProcessor& processor,
@@ -231,6 +259,9 @@ int main(int argc, char** argv) {
         std::cout << "tello " << tello::version() << " — " << drone->model() << " at "
                   << opt.drone.host << ':' << opt.drone.port << ". 'help' lists commands.\n";
         processor.execute_line("connect");  // SDK mode; on failure 'connect' can be retried
+        if (!opt.mission.empty()) {
+            return run_mission_file(*drone, processor, telemetry.get(), opt.mission);
+        }
         return run(*drone, processor, telemetry.get());
     } catch (const std::exception& e) {
         std::cerr << "tello: " << e.what() << '\n';

@@ -8,6 +8,8 @@
 
 #include <algorithm>
 #include <chrono>
+#include <filesystem>
+#include <fstream>
 #include <memory>
 #include <sstream>
 
@@ -173,6 +175,82 @@ TEST_F(ClassicCli, InterruptSkipsRestOfChain) {
     EXPECT_TRUE(cli.execute_line("forward 100; forward 100"));
     EXPECT_EQ(mock->requests, (std::vector<std::string>{"takeoff"}));
     EXPECT_NE(out.str().find("interrupted"), std::string::npos);
+}
+
+TEST_F(ClassicCli, MissionRunsLinesSkipsComments) {
+    std::istringstream plan("# demo\ntakeoff\n\nup 50 # higher\n  cw 90; ccw 90\nland\n");
+    EXPECT_TRUE(cli.run_mission(plan, "demo"));
+    EXPECT_EQ(mock->requests,
+              (std::vector<std::string>{"takeoff", "up 50", "cw 90", "ccw 90", "land"}));
+    EXPECT_NE(out.str().find("demo:4> up 50"), std::string::npos);
+}
+
+TEST_F(ClassicCli, MissionStopsAndLandsOnError) {
+    std::istringstream plan("takeoff\nforward 600\nforward 100\n");
+    EXPECT_FALSE(cli.run_mission(plan, "bad"));
+    EXPECT_EQ(mock->requests, (std::vector<std::string>{"takeoff", "land"}));
+    EXPECT_NE(out.str().find("bad: stopped at line 2"), std::string::npos);
+    EXPECT_FALSE(cli.airborne());
+}
+
+TEST_F(ClassicCli, MissionErrorOnGroundDoesNotLand) {
+    std::istringstream plan("selfie\ntakeoff\n");
+    EXPECT_FALSE(cli.run_mission(plan, "m"));
+    EXPECT_TRUE(mock->requests.empty());
+}
+
+TEST_F(ClassicCli, MissionExitEndsMissionNotProgram) {
+    std::istringstream plan("battery\nexit\ntakeoff\n");
+    mock->reply("80");
+    EXPECT_TRUE(cli.run_mission(plan, "m"));
+    EXPECT_EQ(mock->requests, (std::vector<std::string>{"battery?"}));
+    EXPECT_TRUE(cli.execute_line("land"));  // the shell still runs
+}
+
+TEST_F(ClassicCli, MissionInterruptedLeavesLandingToCaller) {
+    std::istringstream plan("forward 100\nforward 100\n");
+    cli.execute_line("takeoff");
+    interrupted = true;  // Ctrl+C already pressed: nothing more is sent
+    EXPECT_FALSE(cli.run_mission(plan, "m"));
+    EXPECT_EQ(mock->requests, (std::vector<std::string>{"takeoff"}));
+    EXPECT_TRUE(cli.airborne());  // main() calls on_interrupt() to land
+}
+
+TEST_F(ClassicCli, SquareFliesFourSides) {
+    cli.execute_line("takeoff; square 100; land");
+    EXPECT_EQ(mock->requests,
+              (std::vector<std::string>{"takeoff", "forward 100", "cw 90", "forward 100", "cw 90",
+                                        "forward 100", "cw 90", "forward 100", "cw 90", "land"}));
+}
+
+TEST_F(ClassicCli, MissionFileMissing) {
+    cli.execute_line("mission /nonexistent/plan.txt");
+    EXPECT_NE(out.str().find("cannot open"), std::string::npos);
+}
+
+TEST_F(ClassicCli, SquareInsideMission) {
+    std::istringstream plan("takeoff\nsquare 50\nland\n");
+    EXPECT_TRUE(cli.run_mission(plan, "m"));
+    EXPECT_EQ(mock->requests.size(), 10u);
+}
+
+TEST_F(ClassicCli, SquareFailureInShellLands) {
+    mock->reply("ok");                  // takeoff
+    mock->reply("ok");                  // forward
+    mock->reply("error Motor stop");    // cw 90
+    cli.execute_line("takeoff; square 100");
+    EXPECT_EQ(mock->requests,
+              (std::vector<std::string>{"takeoff", "forward 100", "cw 90", "land"}));
+}
+
+TEST_F(ClassicCli, MissionsDoNotNest) {
+    const auto path = std::filesystem::temp_directory_path() / "tello_nested_mission.txt";
+    std::ofstream(path) << "battery\n";
+    std::istringstream plan("takeoff\nmission " + path.string() + "\n");
+    EXPECT_FALSE(cli.run_mission(plan, "outer"));
+    std::filesystem::remove(path);
+    EXPECT_NE(out.str().find("missions do not nest"), std::string::npos);
+    EXPECT_EQ(mock->requests, (std::vector<std::string>{"takeoff", "land"}));
 }
 
 }  // namespace

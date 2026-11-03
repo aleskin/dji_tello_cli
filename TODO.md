@@ -20,7 +20,7 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 | TEL-00005 | cli: REPL на C++ (паритет с Rust) | ✅ Выполнена | 8 |
 | TEL-00006 | core: keepalive и автопосадка при низком заряде | ✅ Выполнена | 3 |
 | TEL-00007 | cli: команды безопасности emergency / stop | ✅ Выполнена | 2 |
-| TEL-00008 | cli: миссии из файла | 📂 Открыта | 3 |
+| TEL-00008 | cli: миссии из файла | ✅ Выполнена | 3 |
 | TEL-00010 | build: make sanity-check (clang-tidy, cppcheck) | 📂 Открыта | 3 |
 | TEL-00011 | build: удалить legacy/rust, README под C++ | 📂 Открыта | 2 |
 | TEL-00012 | sim: режимы сбоев (потери пакетов, error, таймауты) | 📂 Открыта | 3 |
@@ -92,7 +92,7 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
   `hover` → `stop`. Горячая клавиша Ctrl+C в полёте → `land`, не выход из программы.
 
 ### [TEL-00008] cli: миссии из файла
-- **Status:** Открыта
+- **Status:** ✅ Выполнена
 - **Complexity:** 3
 - **Description:** `mission <file>` и `tello --mission <file>`: команды CLI построчно, `#` — комментарии,
   остановка и `land` при первой ошибке. `square <size>` как встроенный пример. Тест на симуляторе.

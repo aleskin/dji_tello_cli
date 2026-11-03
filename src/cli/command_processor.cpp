@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <charconv>
+#include <fstream>
 #include <cmath>
 #include <stdexcept>
 #include <thread>
@@ -70,6 +71,7 @@ std::string_view to_string(Category c) {
         case Category::System: return "System";
         case Category::Flight: return "Flight";
         case Category::Movement: return "Movement";
+        case Category::Mission: return "Mission";
         case Category::Telemetry: return "Telemetry";
     }
     return "?";
@@ -195,6 +197,39 @@ void CommandProcessor::register_commands() {
             out_ << "ok\n";
         });
 
+    // Missions.
+    add({"mission", {}, C::Mission, "mission <file>",
+         "run a command file ('#' comments); on error: stop and land", {}},
+        [this](const Args& a) {
+            if (a.size() != 1) throw UsageError("usage: mission <file>");
+            const std::string path(a[0]);
+            std::ifstream file(path);
+            if (!file) {
+                throw UsageError("mission: cannot open '" + path + "'");
+            }
+            if (!run_mission(file, path)) {
+                throw UsageError("mission '" + path + "' did not complete");
+            }
+        });
+    add({"square", {}, C::Mission, "square <cm>",
+         "example mission in the air: forward + cw 90, four times", Capability::Move},
+        [this](const Args& a) {
+            if (a.size() != 1) throw UsageError("usage: square <cm>");
+            const int side = int_arg("square <cm>", a[0]);
+            std::string chain;
+            for (int i = 0; i < 4; ++i) {
+                chain += "forward " + std::to_string(side) + "; cw 90; ";
+            }
+            // A plain chain, so it also works as a line of a mission file (missions do not nest).
+            if (run_chain(chain) != Outcome::Done) {
+                if (!in_mission_ && airborne_) {
+                    out_ << "square: landing\n";
+                    execute("land");
+                }
+                throw UsageError("square did not complete");
+            }
+        });
+
     // Telemetry: reads, named like the SDK queries without '?' ('battery?' works too).
     auto read_int = [this](const char* name, const char* help, Capability cap,
                            int (drone::DroneBase::*fn)(), const char* unit) {
@@ -238,6 +273,11 @@ const CommandProcessor::Entry* CommandProcessor::find(std::string_view name) con
 }
 
 bool CommandProcessor::execute_line(std::string_view line) {
+    run_chain(line);
+    return !exit_requested_;
+}
+
+CommandProcessor::Outcome CommandProcessor::run_chain(std::string_view line) {
     for (const auto part : split(line, ";")) {
         const auto command = trim(part);
         if (command.empty()) {
@@ -245,13 +285,55 @@ bool CommandProcessor::execute_line(std::string_view line) {
         }
         if (interrupted_()) {
             out_ << "interrupted: rest of the line skipped\n";
-            break;
+            return Outcome::Interrupted;
         }
-        if (!execute(command) || exit_requested_) {
-            break;
+        if (!execute(command)) {
+            return Outcome::Failed;
+        }
+        if (exit_requested_) {
+            return Outcome::Exit;
         }
     }
-    return !exit_requested_;
+    return Outcome::Done;
+}
+
+bool CommandProcessor::run_mission(std::istream& in, std::string_view name) {
+    if (in_mission_) {
+        out_ << "missions do not nest: '" << name << "' skipped\n";
+        return false;
+    }
+    in_mission_ = true;
+    struct Reset {
+        bool& flag;
+        ~Reset() { flag = false; }
+    } reset{in_mission_};
+
+    std::string line;
+    for (int number = 1; std::getline(in, line); ++number) {
+        const std::string_view text = trim(std::string_view(line).substr(0, line.find('#')));
+        if (text.empty()) {
+            continue;
+        }
+        out_ << name << ':' << number << "> " << text << '\n';
+        switch (run_chain(text)) {
+            case Outcome::Done:
+                continue;
+            case Outcome::Exit:
+                exit_requested_ = false;  // 'exit' in a file ends the mission, not the program
+                out_ << name << ": exit at line " << number << '\n';
+                return true;
+            case Outcome::Interrupted:
+                return false;  // Ctrl+C: the caller's on_interrupt() lands
+            case Outcome::Failed:
+                out_ << name << ": stopped at line " << number << '\n';
+                if (airborne_) {
+                    out_ << name << ": landing\n";
+                    execute("land");
+                }
+                return false;
+        }
+    }
+    return true;
 }
 
 void CommandProcessor::on_interrupt() {
@@ -314,7 +396,7 @@ void CommandProcessor::print_help(const Args& args) const {
     }
     out_ << "Commands for " << drone_.model() << " (several in one line: 'takeoff; up 50; land'):\n";
     for (const auto cat : {Category::System, Category::Flight, Category::Movement,
-                           Category::Telemetry}) {
+                           Category::Mission, Category::Telemetry}) {
         out_ << '\n' << to_string(cat) << ":\n";
         for (const auto& e : entries_) {
             if (e.info.category != cat || !available(e.info)) {

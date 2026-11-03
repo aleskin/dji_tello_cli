@@ -5,6 +5,7 @@
 
 #include <chrono>
 #include <functional>
+#include <istream>
 #include <optional>
 #include <ostream>
 #include <string>
@@ -13,7 +14,7 @@
 
 namespace cli {
 
-enum class Category { System, Flight, Movement, Telemetry };
+enum class Category { System, Flight, Movement, Mission, Telemetry };
 
 struct CommandInfo {
     std::string name;
@@ -45,6 +46,10 @@ public:
     // False once "exit" ran.
     bool execute_line(std::string_view line);
 
+    // Mission: one command line per input line, '#' starts a comment. Stops at the first failure
+    // and lands if the drone is in the air. True when every line succeeded.
+    bool run_mission(std::istream& in, std::string_view name);
+
     // Ctrl+C policy: in the air it lands (never quits with a flying drone), on the ground nothing.
     void on_interrupt();
 
@@ -62,6 +67,9 @@ private:
         CommandInfo info;
         std::function<void(const Args&)> run;
     };
+
+    enum class Outcome { Done, Failed, Interrupted, Exit };
+    Outcome run_chain(std::string_view line);
 
     // True on success, false when the chain must stop.
     bool execute(std::string_view command);
@@ -84,6 +92,7 @@ private:
     std::vector<CommandInfo> commands_;
     bool exit_requested_ = false;
     bool airborne_ = false;
+    bool in_mission_ = false;
 };
 
 [[nodiscard]] std::string_view to_string(Category c);
