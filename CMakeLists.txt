@@ -41,6 +41,7 @@ add_library(tello STATIC
     src/tello_family.cpp
     src/factory.cpp
     src/flight_guard.cpp
+    src/dead_reckoning.cpp
     src/state.cpp
     src/state_listener.cpp
 )
@@ -119,6 +120,7 @@ if(TELLO_BUILD_TESTS)
         tests/test_keyboard.cpp
         tests/test_config.cpp
         tests/test_aliases.cpp
+        tests/test_position.cpp
     )
     target_include_directories(tello_tests PRIVATE tests)
     target_link_libraries(tello_tests PRIVATE tello_sim tello_cli_core tello_window PkgConfig::FFMPEG GTest::gtest_main)

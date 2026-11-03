@@ -1,6 +1,7 @@
 #pragma once
 
 #include "drone/drone_base.hpp"
+#include "drone/position.hpp"
 #include "tello/state_listener.hpp"
 #include "video/video_stream.hpp"
 #include "video/viewer.hpp"
@@ -145,6 +146,12 @@ public:
         return aliases_;
     }
 
+    // nullptr when the model cannot tell where it is.
+    [[nodiscard]] const drone::PositionSource* position() const
+    {
+        return position_.get();
+    }
+
 private:
     using Args = std::vector<std::string_view>;
     struct Entry
@@ -183,6 +190,9 @@ private:
     void save_aliases();
     bool run_alias(const std::string& body, std::string_view name, const Args& args);
     void keyboard_mode();
+    void feed_motion(std::optional<std::chrono::steady_clock::time_point>& last);
+    void print_position() const;
+    void return_home();
     [[nodiscard]] video::Osd osd() const;
 
     drone::DroneBase& drone_;
@@ -204,6 +214,7 @@ private:
     int alias_depth_ = 0;                        // aliases calling aliases
     int keyboard_speed_ = kDefaultKeyboardSpeed;
     std::atomic<bool> keyboard_active_{false}; // read by the window thread for the OSD
+    std::unique_ptr<drone::PositionSource> position_;
     std::unique_ptr<video::Viewer> viewer_; // after video_: it reads the stream, so it goes first
 };
 

@@ -70,13 +70,17 @@ line separated by `;`; the line stops at the first error.
 |---|---|
 | System | `help [cmd]`, `version`, `info`, `wait <s>`, `alias`, `aliases`, `unalias <name>`, `exit` |
 | Flight | `connect`, `takeoff`, `land`, `hover` (EDU), `emergency` (motors off, no confirmation) |
-| Movement | `forward/back/left/right/up/down <20..500 cm>`, `cw/ccw <1..360>`, `flip <l\|r\|f\|b>`, `speed <10..100>`, `go <x> <y> <z> <speed>` |
+| Movement | `forward/back/left/right/up/down <20..500 cm>`, `cw/ccw <1..360>`, `flip <l\|r\|f\|b>`, `speed <10..100>`, `go <x> <y> <z> <speed>`, `return` / `home` (fly back above the takeoff point, then `land`) |
 | Mission | `mission <file>`, `square <cm>` |
 | Keyboard | `keyboard` / `kb` (in flight: fly with the keys in the video window — WASD move, arrows up/down/turn, Esc back to commands), `kbspeed [10..100]` (stick deflection, default 40) |
 | Video | `video start` (record the camera to `~/Videos/tello/tello_DATE_TIME.mp4`), `video stop`, `video show` / `video hide` (live window with battery, height and heading), `video status`, `photo` (JPEG of the current picture to `~/Pictures/tello/`) |
-| Telemetry | `battery`, `height`, `wifi`, `get_speed`, `temp`, `time`, `attitude`, `baro`, `tof`, `sdk` (EDU), `sn` (EDU), `state` |
+| Telemetry | `battery`, `height`, `wifi`, `get_speed`, `temp`, `time`, `attitude`, `baro`, `tof`, `sdk` (EDU), `sn` (EDU), `state`, `position` / `pos` (x y z from the takeoff point, heading, estimated error) |
 
 `takeoff` has no height argument: take off, then `up <cm>`.
+
+The Tello has no satellites: its position is **dead reckoning** — counted from the completed
+commands and, in keyboard mode, from the telemetry speed. The error estimate grows with every
+metre flown; `return` flies straight legs back by this estimate, it is not a GPS return-to-home.
 
 ### Safety
 

@@ -2,12 +2,15 @@
 
 #include <atomic>
 #include <chrono>
+#include <memory>
 #include <set>
 #include <string>
 #include <string_view>
 
 namespace drone
 {
+
+class PositionSource;
 
 enum class Direction
 {
@@ -51,6 +54,7 @@ enum class Capability
     Barometer,
     Tof,
     Video,
+    Position, // make_position_source() gives a source
 };
 
 [[nodiscard]] std::string_view to_string(Capability c);
@@ -109,6 +113,9 @@ public:
     virtual void start_video();
     virtual void stop_video();
     [[nodiscard]] virtual std::string video_source() const;
+
+    // Where this model can tell its position from (Capability::Position); nullptr: nowhere.
+    [[nodiscard]] virtual std::unique_ptr<PositionSource> make_position_source() const;
 
     // Cheapest command that resets the drone's auto-land timer (Tello: 15 s of silence).
     virtual void keepalive();

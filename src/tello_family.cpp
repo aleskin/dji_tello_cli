@@ -1,5 +1,7 @@
 #include "tello/tello_family.hpp"
 
+#include "drone/dead_reckoning.hpp"
+
 #include "tello/errors.hpp"
 #include "tello/udp_transport.hpp"
 
@@ -78,7 +80,12 @@ std::set<Capability> TelloFamily::capabilities() const
         Capability::Rotate,     Capability::Flip,    Capability::SetSpeed,  Capability::GoTo,
         Capability::Rc,         Capability::Battery, Capability::Height,    Capability::Temperature,
         Capability::FlightTime, Capability::Wifi,    Capability::Speed,     Capability::Attitude,
-        Capability::Barometer,  Capability::Tof,     Capability::Video};
+        Capability::Barometer,  Capability::Tof,     Capability::Video,     Capability::Position};
+}
+
+std::unique_ptr<drone::PositionSource> TelloFamily::make_position_source() const
+{
+    return std::make_unique<drone::DeadReckoning>(kTakeoffHeightCm);
 }
 
 void TelloFamily::connect()

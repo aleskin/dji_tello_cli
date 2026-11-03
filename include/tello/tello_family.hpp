@@ -85,6 +85,11 @@ public:
     // The drone always streams to port 11111 of this PC; the simulator can use another one.
     void set_video_port(std::uint16_t port);
 
+    // No satellites: dead reckoning from the commands and the telemetry speed.
+    [[nodiscard]] std::unique_ptr<drone::PositionSource> make_position_source() const override;
+
+    static constexpr int kTakeoffHeightCm = 80; // hover height right after "takeoff"
+
 protected:
     TelloFamily(std::shared_ptr<ITransport> transport, DroneTimeouts timeouts);
 

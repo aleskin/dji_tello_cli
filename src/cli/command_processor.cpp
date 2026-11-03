@@ -8,6 +8,7 @@
 #include <charconv>
 #include <cmath>
 #include <fstream>
+#include <numbers>
 #include <stdexcept>
 #include <thread>
 #include <utility>
@@ -129,6 +130,7 @@ CommandProcessor::CommandProcessor(drone::DroneBase& drone, std::ostream& out, S
                                      {
                                          return false;
                                      }))
+    , position_(drone_.make_position_source())
 {
     register_commands();
 }
@@ -222,6 +224,10 @@ void CommandProcessor::register_commands()
         {
             drone_.takeoff();
             airborne_ = true;
+            if (position_)
+            {
+                position_->on_takeoff();
+            }
             out_ << "ok\n";
         });
     add({"land", {}, C::Flight, "land", "land", Capability::Land},
@@ -229,6 +235,10 @@ void CommandProcessor::register_commands()
         {
             drone_.land();
             airborne_ = false;
+            if (position_)
+            {
+                position_->on_land();
+            }
             out_ << "ok\n";
         });
     add({"hover", {"stop"}, C::Flight, "hover", "stop moving and hold position", Capability::Hover},
@@ -248,6 +258,10 @@ void CommandProcessor::register_commands()
         {
             drone_.emergency();
             airborne_ = false;
+            if (position_)
+            {
+                position_->on_land();
+            }
             out_ << "ok\n";
         });
 
@@ -270,7 +284,12 @@ void CommandProcessor::register_commands()
                 {
                     throw UsageError("usage: " + usage);
                 }
-                drone_.move(dir, int_arg(usage, a[0]));
+                const int cm = int_arg(usage, a[0]);
+                drone_.move(dir, cm);
+                if (position_)
+                {
+                    position_->on_move(dir, cm);
+                }
                 out_ << "ok\n";
             });
     }
@@ -286,7 +305,12 @@ void CommandProcessor::register_commands()
             {
                 throw UsageError("usage: cw <degrees>");
             }
-            drone_.rotate_cw(int_arg("cw <degrees>", a[0]));
+            const int degrees = int_arg("cw <degrees>", a[0]);
+            drone_.rotate_cw(degrees);
+            if (position_)
+            {
+                position_->on_rotate(degrees);
+            }
             out_ << "ok\n";
         });
     add({"ccw",
@@ -301,7 +325,12 @@ void CommandProcessor::register_commands()
             {
                 throw UsageError("usage: ccw <degrees>");
             }
-            drone_.rotate_ccw(int_arg("ccw <degrees>", a[0]));
+            const int degrees = int_arg("ccw <degrees>", a[0]);
+            drone_.rotate_ccw(degrees);
+            if (position_)
+            {
+                position_->on_rotate(-degrees);
+            }
             out_ << "ok\n";
         });
     add({"flip",
@@ -317,6 +346,10 @@ void CommandProcessor::register_commands()
                 throw UsageError("usage: flip <l|r|f|b>");
             }
             drone_.flip(flip_arg(a[0]));
+            if (position_)
+            {
+                position_->on_flip();
+            }
             out_ << "ok\n";
         });
     add({"speed", {}, C::Movement, "speed <cm/s>", "set speed 10..100", Capability::SetSpeed},
@@ -342,9 +375,25 @@ void CommandProcessor::register_commands()
             {
                 throw UsageError(std::string("usage: ") + usage);
             }
-            drone_.go(int_arg(usage, a[0]), int_arg(usage, a[1]), int_arg(usage, a[2]),
-                      int_arg(usage, a[3]));
+            const int x = int_arg(usage, a[0]);
+            const int y = int_arg(usage, a[1]);
+            const int z = int_arg(usage, a[2]);
+            drone_.go(x, y, z, int_arg(usage, a[3]));
+            if (position_)
+            {
+                position_->on_go(x, y, z);
+            }
             out_ << "ok\n";
+        });
+    add({"return",
+         {"home"},
+         C::Movement,
+         "return",
+         "fly back above the takeoff point (by the position estimate)",
+         Capability::Position},
+        [this](const Args&)
+        {
+            return_home();
         });
 
     // Missions.
@@ -498,6 +547,16 @@ void CommandProcessor::register_commands()
               &drone::DroneBase::tof_distance);
     read_text("sdk", "SDK version", Capability::SdkVersion, &drone::DroneBase::sdk_version);
     read_text("sn", "serial number", Capability::SerialNumber, &drone::DroneBase::serial_number);
+    add({"position",
+         {"pos", "get_position"},
+         Category::Telemetry,
+         "position",
+         "where the drone is from the takeoff point, and how sure",
+         Capability::Position},
+        [this](const Args&)
+        {
+            print_position();
+        });
     add({"state", {}, Category::Telemetry, "state", "last telemetry packet (--state-port)", {}},
         [this](const Args&)
         {
@@ -1133,6 +1192,11 @@ void CommandProcessor::keyboard_mode()
          << k.turn_right << " turn, Esc back, speed " << keyboard_speed_ << '\n'
          << std::flush;
     keyboard_active_.store(true);
+    if (position_)
+    {
+        position_->on_free_flight();
+    }
+    std::optional<std::chrono::steady_clock::time_point> last_sample;
     std::string reason = "command mode";
     try
     {
@@ -1156,6 +1220,7 @@ void CommandProcessor::keyboard_mode()
             const RcSticks s =
                 sticks_from_keys(viewer_->pressed_keys(), key_layout_, keyboard_speed_);
             drone_.rc(s.left_right, s.forward_back, s.up_down, s.yaw);
+            feed_motion(last_sample);
             sleep_(kKeyboardPeriod);
         }
     }
@@ -1168,6 +1233,90 @@ void CommandProcessor::keyboard_mode()
     keyboard_active_.store(false);
     drone_.rc(0, 0, 0, 0); // hover
     out_ << reason << '\n';
+}
+
+void CommandProcessor::feed_motion(std::optional<std::chrono::steady_clock::time_point>& last)
+{
+    const auto snap = position_ && telemetry_ ? telemetry_->latest() : std::nullopt;
+    if (!snap || (last && snap->received <= *last))
+    {
+        return;
+    }
+    drone::MotionSample sample;
+    // Tello speeds are dm/s; taken as forward/right in the body frame.
+    sample.forward_cm_s = snap->state.vgx * 10.0;
+    sample.right_cm_s = snap->state.vgy * 10.0;
+    sample.yaw_deg = snap->state.yaw;
+    sample.height_cm = snap->state.h;
+    if (last)
+    {
+        sample.dt = snap->received - *last;
+    }
+    last = snap->received;
+    position_->on_motion(sample);
+}
+
+void CommandProcessor::print_position() const
+{
+    const auto p = position_->position();
+    std::string heading = std::to_string(p.heading_deg);
+    heading.insert(0, 3 - std::min<std::size_t>(heading.size(), 3), '0');
+    out_ << "x " << std::lround(p.x_cm) << "  y " << std::lround(p.y_cm) << "  z "
+         << std::lround(p.z_cm) << " cm  heading " << heading << "  ±" << std::lround(p.error_cm)
+         << " cm (" << position_->name() << ")\n";
+}
+
+namespace
+{
+
+constexpr int kMinMoveCm = 20;
+constexpr int kMaxMoveCm = 500;
+
+// "forward 500; forward 230": legs of 20..500 cm; under 20 cm cannot be flown.
+std::string legs(double cm, const char* positive, const char* negative)
+{
+    int left = static_cast<int>(std::lround(std::abs(cm)));
+    const char* name = cm >= 0 ? positive : negative;
+    std::string out;
+    while (left >= kMinMoveCm)
+    {
+        int step = std::min(left, kMaxMoveCm);
+        if (left - step > 0 && left - step < kMinMoveCm)
+        {
+            step = left - kMinMoveCm;
+        }
+        out += std::string(name) + ' ' + std::to_string(step) + "; ";
+        left -= step;
+    }
+    return out;
+}
+
+} // namespace
+
+void CommandProcessor::return_home()
+{
+    if (!airborne_)
+    {
+        throw UsageError("return: not in the air");
+    }
+    const auto p = position_->position();
+    const double rad = p.heading_deg * std::numbers::pi / 180.0;
+    const double forward = -p.x_cm * std::cos(rad) - p.y_cm * std::sin(rad);
+    const double right = p.x_cm * std::sin(rad) - p.y_cm * std::cos(rad);
+    const std::string path = legs(forward, "forward", "back") + legs(right, "right", "left");
+    if (path.empty())
+    {
+        out_ << "return: already above the takeoff point (±" << std::lround(p.error_cm) << " cm)\n";
+        return;
+    }
+    out_ << "return: " << std::lround(std::hypot(p.x_cm, p.y_cm)) << " cm to the takeoff point\n";
+    if (run_chain(path) != Outcome::Done)
+    {
+        throw UsageError("return: stopped");
+    }
+    const auto now = position_->position();
+    out_ << "return: above the takeoff point, " << std::lround(std::hypot(now.x_cm, now.y_cm))
+         << " cm off ±" << std::lround(now.error_cm) << " cm; 'land' to land\n";
 }
 
 void CommandProcessor::take_photo()

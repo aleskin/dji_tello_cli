@@ -1,6 +1,7 @@
 #include "drone/drone_base.hpp"
 
 #include "drone/errors.hpp"
+#include "drone/position.hpp"
 
 #include <string>
 
@@ -55,6 +56,8 @@ std::string_view to_string(Capability c)
         return "tof";
     case Capability::Video:
         return "video";
+    case Capability::Position:
+        return "position";
     }
     return "?";
 }
@@ -187,6 +190,11 @@ std::chrono::steady_clock::duration DroneBase::idle_for() const
 void DroneBase::mark_activity()
 {
     last_activity_.store(std::chrono::steady_clock::now().time_since_epoch().count());
+}
+
+std::unique_ptr<PositionSource> DroneBase::make_position_source() const
+{
+    return nullptr;
 }
 
 } // namespace drone
