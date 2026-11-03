@@ -5,7 +5,7 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 
 ---
 
-## ⚡ Next Task ID: TEL-00028
+## ⚡ Next Task ID: TEL-00030
 
 > Единственный счётчик задач. Берём это число как номер новой задачи и сразу инкрементируем.
 > Номер никогда не используется повторно.
@@ -25,6 +25,8 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 | TEL-00011 | build: удалить legacy/rust, README под C++ | 📂 Открыта | 2 |
 | TEL-00012 | sim: режимы сбоев (потери пакетов, error, таймауты) | 📂 Открыта | 3 |
 | TEL-00013 | Купить батарею и первый реальный полёт по чек-листу | ❗ Владелец | 2 |
+| TEL-00028 | core: иерархия дронов база → семейство → модель | 📂 Открыта | 8 |
+| TEL-00029 | sim: модель дрона в симуляторе (tello / tello-edu) | 📂 Открыта | 3 |
 
 ## 📝 Детали задач
 
@@ -51,7 +53,24 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 - **Description:** Дрон сам садится через 15 с без команд. Фоновый keepalive (`command` раз в ~5 с,
   если не было других команд). По телеметрии `bat` ≤ порога (по умолчанию 15 %) — предупреждение,
   ≤ 10 % — `land`. Проверка на `tello-sim` (его разряд батареи ускоряемый).
-- **Блокирована:** TEL-00003, TEL-00004
+
+### [TEL-00028] core: иерархия дронов база → семейство → модель
+- **Status:** Открыта
+- **Complexity:** 8
+- **Description:** Три уровня, как слои OSI; фреймворк управления (CLI, миссии, keepalive) знает
+  только базу и не знает, какой дрон за ней.
+  1. `tello::DroneBase` (переименовать namespace/библиотеку — решить в задаче) — абстрактная база:
+     общие для любого дрона действия (`connect`, `takeoff`, `land`, `emergency`, `move`, `rotate`,
+     `battery`, `height`, `state`…) с дефолтными заглушками → `NotSupported`; `capabilities()` —
+     набор того, что модель умеет, чтобы CLI показывал в `help` только доступное.
+  2. Семейство: `TelloFamily : DroneBase` — общий протокол Ryze/DJI Tello (текст по UDP 8889,
+     телеметрия 8890, диапазоны SDK). Сюда переезжает нынешний `Drone` + `ITransport`.
+     Другие производители потом — соседние семейства.
+  3. Модель: `TelloClassic : TelloFamily` — дрон владельца (старый Tello, прошивка без обновлений,
+     SDK 1.3: нет `stop`, `sdk?`, `sn?`, mission pads — проверить на дроне в TEL-00013);
+     `TelloEdu : TelloFamily` (SDK 2.0) — заготовка под TEL-00023.
+  Фабрика `make_drone(model, transport)`, флаг CLI `--model tello|tello-edu` (по умолчанию `tello`).
+  Тесты: команды, которых нет у модели, кидают `NotSupported` и ничего не шлют.
 
 ### 💻 CLI
 
@@ -63,6 +82,8 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
   (`replxx` через FetchContent), задержки по командам заменить ожиданием ответа `ok`.
   Флаги `--host`, `--port`, `--state-port` — для запуска против симулятора. Без несуществующих
   медиа-команд (см. AGENTS.md → SDK facts). Позиционные команды (`camera_to_center` и т.п.) — TEL-00021.
+  Работает только через `DroneBase`; `help` строится из `capabilities()` модели.
+- **Блокирована:** TEL-00028
 
 ### [TEL-00007] cli: команды безопасности emergency / stop
 - **Status:** Открыта
@@ -83,7 +104,14 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 - **Complexity:** 3
 - **Description:** Флаги `tello-sim`: `--drop N%` (потеря ответов), `--delay MS`, `--fail-cmd <name>`
   (всегда `error`), `--battery N`. Тесты: ретраи и таймауты транспорта, поведение CLI при ошибке.
-- **Блокирована:** TEL-00004
+
+### [TEL-00029] sim: модель дрона в симуляторе (tello / tello-edu)
+- **Status:** Открыта
+- **Complexity:** 3
+- **Description:** `tello-sim --model tello|tello-edu`: классический Tello (SDK 1.3) отвечает на
+  `stop`/`sdk?`/`sn?` как старая прошивка, телеметрия без полей mission pad (`mid`, `x`, `y`, `z`, `mpry`).
+  Интеграционные тесты TEL-00028 гоняют обе модели.
+- **Блокирована:** TEL-00028
 
 ### 🚁 Owner
 
