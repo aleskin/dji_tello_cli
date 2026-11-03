@@ -1,6 +1,7 @@
 // Camera stream: "video start/stop" through the CLI against the simulator, checked MP4 on disk.
 
 #include "cli/command_processor.hpp"
+#include "fake_viewer.hpp"
 #include "mock_transport.hpp"
 #include "simulator.hpp"
 #include "tello/tello_family.hpp"
@@ -211,39 +212,7 @@ TEST_F(VideoCliTest, StatusAndStopWithoutVideo)
     EXPECT_NE(out.str().find("usage: video start|stop|show|hide|status"), std::string::npos);
 }
 
-// Stands in for the SDL window: records that it exists and pulls pictures like the real one.
-class FakeViewer : public video::Viewer
-{
-public:
-    explicit FakeViewer(video::ViewerSources s, int& alive)
-        : sources(std::move(s))
-        , alive_(alive)
-    {
-        ++alive_;
-    }
-    FakeViewer(const FakeViewer&) = delete;
-    FakeViewer& operator=(const FakeViewer&) = delete;
-    FakeViewer(FakeViewer&&) = delete;
-    FakeViewer& operator=(FakeViewer&&) = delete;
-    ~FakeViewer() override
-    {
-        --alive_;
-    }
-    [[nodiscard]] bool is_open() const override
-    {
-        return open;
-    }
-    [[nodiscard]] std::string error() const override
-    {
-        return {};
-    }
-
-    video::ViewerSources sources;
-    bool open = true;
-
-private:
-    int& alive_;
-};
+using tello::test::FakeViewer;
 
 TEST_F(VideoCliTest, ShowWithoutWindowSupportIsRefused)
 {

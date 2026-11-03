@@ -116,6 +116,7 @@ if(TELLO_BUILD_TESTS)
         tests/test_sim_video.cpp
         tests/test_video_stream.cpp
         tests/test_video_window.cpp
+        tests/test_keyboard.cpp
     )
     target_include_directories(tello_tests PRIVATE tests)
     target_link_libraries(tello_tests PRIVATE tello_sim tello_cli_core tello_window PkgConfig::FFMPEG GTest::gtest_main)

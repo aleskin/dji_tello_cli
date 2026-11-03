@@ -5,8 +5,10 @@
 #include <atomic>
 #include <cstdint>
 #include <mutex>
+#include <set>
 #include <string>
 #include <thread>
+#include <vector>
 
 namespace video
 {
@@ -26,6 +28,8 @@ public:
 
     [[nodiscard]] bool is_open() const override;
     [[nodiscard]] std::string error() const override;
+    [[nodiscard]] std::set<std::string> pressed_keys() const override;
+    std::vector<std::string> take_key_presses() override;
 
     // Pictures drawn so far (tests).
     [[nodiscard]] std::int64_t pictures_shown() const
@@ -42,6 +46,8 @@ private:
     std::atomic<std::int64_t> shown_{0};
     mutable std::mutex mutex_;
     std::string error_;
+    std::set<std::string> pressed_;
+    std::vector<std::string> presses_;
     std::jthread thread_; // last: started after everything it uses exists
 };
 

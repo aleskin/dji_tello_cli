@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <chrono>
 #include <cstdint>
 #include <memory>
@@ -16,14 +17,15 @@ namespace video
 namespace
 {
 
-// 5x7 bitmap font for the OSD (SDL2_ttf is not a dependency): one row per byte, bit 4 = left.
+// 5x7 bitmap font for the OSD, upper case only (SDL2_ttf is not a dependency): one row per byte,
+// bit 4 = left.
 struct Glyph
 {
     char c;
     std::array<std::uint8_t, 7> rows;
 };
 
-constexpr std::array<Glyph, 26> kFont{{
+constexpr std::array<Glyph, 40> kFont{{
     {'0', {0x0E, 0x11, 0x13, 0x15, 0x19, 0x11, 0x0E}},
     {'1', {0x04, 0x0C, 0x04, 0x04, 0x04, 0x04, 0x0E}},
     {'2', {0x0E, 0x11, 0x01, 0x02, 0x04, 0x08, 0x1F}},
@@ -39,14 +41,28 @@ constexpr std::array<Glyph, 26> kFont{{
     {'C', {0x0E, 0x11, 0x10, 0x10, 0x10, 0x11, 0x0E}},
     {'D', {0x1C, 0x12, 0x11, 0x11, 0x11, 0x12, 0x1C}},
     {'E', {0x1F, 0x10, 0x10, 0x1E, 0x10, 0x10, 0x1F}},
+    {'F', {0x1F, 0x10, 0x10, 0x1E, 0x10, 0x10, 0x10}},
     {'G', {0x0E, 0x11, 0x10, 0x17, 0x11, 0x11, 0x0F}},
     {'H', {0x11, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11}},
     {'I', {0x0E, 0x04, 0x04, 0x04, 0x04, 0x04, 0x0E}},
+    {'J', {0x07, 0x02, 0x02, 0x02, 0x02, 0x12, 0x0C}},
+    {'K', {0x11, 0x12, 0x14, 0x18, 0x14, 0x12, 0x11}},
+    {'L', {0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x1F}},
     {'M', {0x11, 0x1B, 0x15, 0x15, 0x11, 0x11, 0x11}},
     {'N', {0x11, 0x11, 0x19, 0x15, 0x13, 0x11, 0x11}},
     {'O', {0x0E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E}},
+    {'P', {0x1E, 0x11, 0x11, 0x1E, 0x10, 0x10, 0x10}},
+    {'Q', {0x0E, 0x11, 0x11, 0x11, 0x15, 0x12, 0x0D}},
+    {'R', {0x1E, 0x11, 0x11, 0x1E, 0x14, 0x12, 0x11}},
+    {'S', {0x0F, 0x10, 0x10, 0x0E, 0x01, 0x01, 0x1E}},
     {'T', {0x1F, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04}},
+    {'U', {0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E}},
     {'V', {0x11, 0x11, 0x11, 0x11, 0x11, 0x0A, 0x04}},
+    {'W', {0x11, 0x11, 0x11, 0x15, 0x15, 0x15, 0x0A}},
+    {'X', {0x11, 0x11, 0x0A, 0x04, 0x0A, 0x11, 0x11}},
+    {'Y', {0x11, 0x11, 0x0A, 0x04, 0x04, 0x04, 0x04}},
+    {'Z', {0x1F, 0x01, 0x02, 0x04, 0x08, 0x10, 0x1F}},
+    {':', {0x00, 0x0C, 0x0C, 0x00, 0x0C, 0x0C, 0x00}},
     {'%', {0x18, 0x19, 0x02, 0x04, 0x08, 0x13, 0x03}},
     {'-', {0x00, 0x00, 0x00, 0x1F, 0x00, 0x00, 0x00}},
     {' ', {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
@@ -89,6 +105,17 @@ void draw_text(SDL_Renderer* renderer, std::string_view text, int x, int y, int 
         x += kAdvance * scale;
     }
     SDL_RenderFillRects(renderer, pixels.data(), static_cast<int>(pixels.size()));
+}
+
+std::string key_name(SDL_Keycode key)
+{
+    std::string name = SDL_GetKeyName(key);
+    std::ranges::transform(name, name.begin(),
+                           [](unsigned char c)
+                           {
+                               return static_cast<char>(std::tolower(c));
+                           });
+    return name;
 }
 
 int text_width(std::string_view text, int scale)
@@ -193,6 +220,18 @@ std::string VideoWindow::error() const
     return error_;
 }
 
+std::set<std::string> VideoWindow::pressed_keys() const
+{
+    const std::scoped_lock lock(mutex_);
+    return pressed_;
+}
+
+std::vector<std::string> VideoWindow::take_key_presses()
+{
+    const std::scoped_lock lock(mutex_);
+    return std::exchange(presses_, {});
+}
+
 void VideoWindow::run(const std::stop_token& stop)
 {
     auto fail = [this](const std::string& what)
@@ -242,8 +281,29 @@ void VideoWindow::run(const std::stop_token& stop)
             if (event.type == SDL_QUIT ||
                 (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_CLOSE))
             {
+                const std::scoped_lock lock(mutex_);
+                pressed_.clear();
                 open_.store(false);
                 return;
+            }
+            const std::scoped_lock lock(mutex_);
+            if (event.type == SDL_KEYDOWN)
+            {
+                const std::string name = key_name(event.key.keysym.sym);
+                pressed_.insert(name);
+                if (event.key.repeat == 0)
+                {
+                    presses_.push_back(name);
+                }
+            }
+            else if (event.type == SDL_KEYUP)
+            {
+                pressed_.erase(key_name(event.key.keysym.sym));
+            }
+            else if (event.type == SDL_WINDOWEVENT &&
+                     event.window.event == SDL_WINDOWEVENT_FOCUS_LOST)
+            {
+                pressed_.clear(); // key-up events go to the other window now
             }
         }
 

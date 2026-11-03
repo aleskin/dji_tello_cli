@@ -13,7 +13,8 @@ namespace
 
 TEST(OsdTest, TextWithAndWithoutTelemetry)
 {
-    EXPECT_EQ(video::osd_text({87, 120, 45}), "BAT 87%  H 120CM  HDG 045");
+    EXPECT_EQ(video::osd_text({87, 120, 45, ""}), "BAT 87%  H 120CM  HDG 045");
+    EXPECT_EQ(video::osd_text({87, 120, 45, "KEYBOARD"}), "BAT 87%  H 120CM  HDG 045  KEYBOARD");
     EXPECT_EQ(video::osd_text({}), "BAT --%  H --CM  HDG --");
 }
 
@@ -53,7 +54,7 @@ TEST(VideoWindowTest, ShowsPicturesOffscreen)
                                    [&osd_calls]
                                    {
                                        ++osd_calls;
-                                       return video::Osd{50, 100, 10};
+                                       return video::Osd{50, 100, 10, "KEYBOARD"};
                                    }});
         const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(3);
         while (window.pictures_shown() < 5 && window.is_open() &&
@@ -78,6 +79,8 @@ TEST(VideoWindowTest, NoPictureYetKeepsWindowOpen)
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
     EXPECT_TRUE(window.is_open()) << window.error();
     EXPECT_EQ(window.pictures_shown(), 0);
+    EXPECT_TRUE(window.pressed_keys().empty());
+    EXPECT_TRUE(window.take_key_presses().empty());
 }
 
 TEST(VideoWindowTest, ReportsWhenSdlCannotStart)

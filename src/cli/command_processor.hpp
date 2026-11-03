@@ -5,6 +5,7 @@
 #include "video/video_stream.hpp"
 #include "video/viewer.hpp"
 
+#include <atomic>
 #include <chrono>
 #include <filesystem>
 #include <functional>
@@ -12,6 +13,7 @@
 #include <memory>
 #include <optional>
 #include <ostream>
+#include <set>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -49,6 +51,36 @@ struct SessionInfo
     std::filesystem::path video_dir; // recordings go here (~/Videos/tello)
     std::filesystem::path photo_dir; // photos go here (~/Pictures/tello)
 };
+
+// Keyboard mode bindings: lowercase key names as the window reports them (see video::Viewer).
+struct KeyLayout
+{
+    std::string forward = "w";
+    std::string back = "s";
+    std::string left = "a";
+    std::string right = "d";
+    std::string up = "up";
+    std::string down = "down";
+    std::string turn_left = "left";
+    std::string turn_right = "right";
+};
+
+// rc a b c d (left/right, forward/back, up/down, yaw) for the keys held down; opposite keys
+// cancel out.
+struct RcSticks
+{
+    int left_right = 0;
+    int forward_back = 0;
+    int up_down = 0;
+    int yaw = 0;
+
+    bool operator==(const RcSticks&) const = default;
+};
+[[nodiscard]] RcSticks sticks_from_keys(const std::set<std::string>& pressed,
+                                        const KeyLayout& layout, int speed);
+
+constexpr int kDefaultKeyboardSpeed = 40;
+constexpr std::chrono::milliseconds kKeyboardPeriod{50}; // rc at 20 Hz
 
 // Interactive command layer. Knows only DroneBase: which model sits behind it decides what works.
 class CommandProcessor
@@ -92,6 +124,11 @@ public:
         viewer_factory_ = std::move(factory);
     }
 
+    void set_key_layout(KeyLayout layout)
+    {
+        key_layout_ = std::move(layout);
+    }
+
 private:
     using Args = std::vector<std::string_view>;
     struct Entry
@@ -124,6 +161,7 @@ private:
     void ensure_stream(); // streamon + reader, if not running yet
     void take_photo();
     void show_window();
+    void keyboard_mode();
     [[nodiscard]] video::Osd osd() const;
 
     drone::DroneBase& drone_;
@@ -139,6 +177,9 @@ private:
     bool in_mission_ = false;
     std::unique_ptr<video::VideoStream> video_; // between "video start" and "video stop"
     video::ViewerFactory viewer_factory_;
+    KeyLayout key_layout_;
+    int keyboard_speed_ = kDefaultKeyboardSpeed;
+    std::atomic<bool> keyboard_active_{false}; // read by the window thread for the OSD
     std::unique_ptr<video::Viewer> viewer_; // after video_: it reads the stream, so it goes first
 };
 

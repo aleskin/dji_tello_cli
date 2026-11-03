@@ -19,7 +19,7 @@ std::string osd_text(const Osd& osd)
         return std::string(buf.data());
     };
     return "BAT " + value(osd.battery, "%d") + "%  H " + value(osd.height_cm, "%d") + "CM  HDG " +
-           value(osd.heading_deg, "%03d");
+           value(osd.heading_deg, "%03d") + (osd.mode.empty() ? "" : "  " + osd.mode);
 }
 
 int heading_from_yaw(int yaw)

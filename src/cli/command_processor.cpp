@@ -402,6 +402,43 @@ void CommandProcessor::register_commands()
             }
             take_photo();
         });
+    add({"keyboard",
+         {"kb"},
+         C::Movement,
+         "keyboard",
+         "fly with the keys in the video window: WASD move, arrows up/down/turn, Esc back",
+         Capability::Rc},
+        [this](const Args& a)
+        {
+            if (!a.empty())
+            {
+                throw UsageError("usage: keyboard");
+            }
+            keyboard_mode();
+        });
+    add({"kbspeed",
+         {},
+         C::Movement,
+         "kbspeed [10..100]",
+         "keyboard mode stick deflection, percent (default 40)",
+         Capability::Rc},
+        [this](const Args& a)
+        {
+            if (a.size() > 1)
+            {
+                throw UsageError("usage: kbspeed [10..100]");
+            }
+            if (a.size() == 1)
+            {
+                const int speed = int_arg("kbspeed [10..100]", a[0]);
+                if (speed < 10 || speed > 100)
+                {
+                    throw UsageError("kbspeed must be 10..100, got " + std::to_string(speed));
+                }
+                keyboard_speed_ = speed;
+            }
+            out_ << "keyboard speed " << keyboard_speed_ << '\n';
+        });
 
     // Telemetry: reads, named like the SDK queries without '?' ('battery?' works too).
     auto read_int = [this](const char* name, const char* help, Capability cap,
@@ -808,12 +845,82 @@ void CommandProcessor::show_window()
 
 video::Osd CommandProcessor::osd() const
 {
+    std::string mode = keyboard_active_.load() ? "KEYBOARD" : "";
     const auto snap = telemetry_ ? telemetry_->latest() : std::nullopt;
     if (!snap || std::chrono::steady_clock::now() - snap->received > std::chrono::seconds(2))
     {
-        return {};
+        return {{}, {}, {}, mode};
     }
-    return {snap->state.bat, snap->state.h, video::heading_from_yaw(snap->state.yaw)};
+    return {snap->state.bat, snap->state.h, video::heading_from_yaw(snap->state.yaw), mode};
+}
+
+RcSticks sticks_from_keys(const std::set<std::string>& pressed, const KeyLayout& layout, int speed)
+{
+    auto axis = [&pressed, speed](const std::string& plus, const std::string& minus)
+    {
+        return (pressed.contains(plus) ? speed : 0) - (pressed.contains(minus) ? speed : 0);
+    };
+    return {axis(layout.right, layout.left), axis(layout.forward, layout.back),
+            axis(layout.up, layout.down), axis(layout.turn_right, layout.turn_left)};
+}
+
+void CommandProcessor::keyboard_mode()
+{
+    if (!airborne_)
+    {
+        throw UsageError("keyboard: take off first");
+    }
+    if (!viewer_ || !viewer_->is_open())
+    {
+        show_window();
+    }
+    if (!viewer_ || !viewer_->is_open())
+    {
+        throw UsageError("keyboard: no window" +
+                         (viewer_ ? " (" + viewer_->error() + ")" : std::string()));
+    }
+    viewer_->take_key_presses(); // keys typed before the mode started do not count
+    const KeyLayout& k = key_layout_;
+    out_ << "keyboard mode in the video window: " << k.forward << '/' << k.left << '/' << k.back
+         << '/' << k.right << " move, " << k.up << '/' << k.down << " climb, " << k.turn_left << '/'
+         << k.turn_right << " turn, Esc back, speed " << keyboard_speed_ << '\n'
+         << std::flush;
+    keyboard_active_.store(true);
+    std::string reason = "command mode";
+    try
+    {
+        for (;;)
+        {
+            if (interrupted_())
+            {
+                reason = "interrupted";
+                break;
+            }
+            if (!viewer_->is_open())
+            {
+                reason = "window closed, command mode";
+                break;
+            }
+            const auto presses = viewer_->take_key_presses();
+            if (std::ranges::find(presses, "escape") != presses.end())
+            {
+                break;
+            }
+            const RcSticks s =
+                sticks_from_keys(viewer_->pressed_keys(), key_layout_, keyboard_speed_);
+            drone_.rc(s.left_right, s.forward_back, s.up_down, s.yaw);
+            sleep_(kKeyboardPeriod);
+        }
+    }
+    catch (...)
+    {
+        keyboard_active_.store(false);
+        drone_.rc(0, 0, 0, 0);
+        throw;
+    }
+    keyboard_active_.store(false);
+    drone_.rc(0, 0, 0, 0); // hover
+    out_ << reason << '\n';
 }
 
 void CommandProcessor::take_photo()

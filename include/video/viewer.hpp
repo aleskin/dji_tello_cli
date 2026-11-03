@@ -6,7 +6,9 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
+#include <vector>
 
 namespace video
 {
@@ -17,9 +19,10 @@ struct Osd
     std::optional<int> battery;     // percent
     std::optional<int> height_cm;   // above the takeoff point
     std::optional<int> heading_deg; // 0..359
+    std::string mode;               // e.g. "KEYBOARD", empty in the command mode
 };
 
-// "BAT 87%  H 120CM  HDG 045": the line drawn over the picture.
+// "BAT 87%  H 120CM  HDG 045  KEYBOARD": the line drawn over the picture.
 [[nodiscard]] std::string osd_text(const Osd& osd);
 
 // Telemetry yaw (-180..180) as a compass-style heading 0..359.
@@ -47,6 +50,13 @@ public:
     // False once the user closed the window or it could not be opened (see error()).
     [[nodiscard]] virtual bool is_open() const = 0;
     [[nodiscard]] virtual std::string error() const = 0;
+
+    // Keys held down in the window right now, lowercase SDL names: "w", "up", "escape".
+    // Empty while the window has no focus, so switching away releases every key.
+    [[nodiscard]] virtual std::set<std::string> pressed_keys() const = 0;
+
+    // Keys pressed since the last call, in order: a tap shorter than the poll is not lost.
+    virtual std::vector<std::string> take_key_presses() = 0;
 };
 
 using ViewerFactory = std::function<std::unique_ptr<Viewer>(ViewerSources)>;
