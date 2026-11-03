@@ -18,7 +18,7 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 | ID | Задача | Статус | Сл. |
 |---|---|---|---|
 | TEL-00005 | cli: REPL на C++ (паритет с Rust) | ✅ Выполнена | 8 |
-| TEL-00006 | core: keepalive и автопосадка при низком заряде | 📂 Открыта | 3 |
+| TEL-00006 | core: keepalive и автопосадка при низком заряде | ✅ Выполнена | 3 |
 | TEL-00007 | cli: команды безопасности emergency / stop | 📂 Открыта | 2 |
 | TEL-00008 | cli: миссии из файла | 📂 Открыта | 3 |
 | TEL-00010 | build: make sanity-check (clang-tidy, cppcheck) | 📂 Открыта | 3 |
@@ -48,7 +48,7 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 ### 🛰️ Core
 
 ### [TEL-00006] core: keepalive и автопосадка при низком заряде
-- **Status:** Открыта
+- **Status:** ✅ Выполнена
 - **Complexity:** 3
 - **Description:** Дрон сам садится через 15 с без команд. Фоновый keepalive (`command` раз в ~5 с,
   если не было других команд). По телеметрии `bat` ≤ порога (по умолчанию 15 %) — предупреждение,

@@ -3,6 +3,7 @@
 #include "cli/command_processor.hpp"
 #include "drone/errors.hpp"
 #include "drone/factory.hpp"
+#include "drone/flight_guard.hpp"
 #include "tello/state_listener.hpp"
 #include "tello/udp_transport.hpp"
 #include "tello/version.hpp"
@@ -16,6 +17,8 @@
 #include <filesystem>
 #include <iostream>
 #include <memory>
+#include <mutex>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -103,9 +106,25 @@ replxx::Replxx::completions_t complete(const cli::CommandProcessor& processor,
     return out;
 }
 
-int run(cli::CommandProcessor& processor) {
+// Battery from telemetry, if a packet arrived recently: no extra traffic to the drone.
+std::optional<int> telemetry_battery(const tello::StateListener* telemetry) {
+    const auto snap = telemetry ? telemetry->latest() : std::nullopt;
+    if (!snap || std::chrono::steady_clock::now() - snap->received > std::chrono::seconds(2)) {
+        return std::nullopt;
+    }
+    return snap->state.bat;
+}
+
+int run(drone::DroneBase& drone, cli::CommandProcessor& processor,
+        const tello::StateListener* telemetry) {
+    auto battery = [telemetry] { return telemetry_battery(telemetry); };
     if (!::isatty(STDIN_FILENO)) {
         // Piped input: one command line per input line, no editing.
+        std::mutex out_mutex;
+        drone::FlightGuard guard(drone, {}, battery, [&out_mutex](const std::string& m) {
+            const std::lock_guard lock(out_mutex);
+            std::cout << "! " << m << std::endl;
+        });
         std::string line;
         while (std::getline(std::cin, line)) {
             if (!processor.execute_line(line)) {
@@ -121,6 +140,9 @@ int run(cli::CommandProcessor& processor) {
     if (!history.empty() && std::filesystem::exists(history)) {
         rx.history_load(history);
     }
+    // Keepalive and low-battery landing; messages are printed above the prompt.
+    drone::FlightGuard guard(drone, {}, battery,
+                             [&rx](const std::string& m) { rx.print("! %s\n", m.c_str()); });
     rx.set_max_history_size(1000);
     rx.set_completion_callback([&processor](const std::string& input, int& context_len) {
         return complete(processor, input, context_len);
@@ -170,7 +192,7 @@ int main(int argc, char** argv) {
         std::cout << "tello " << tello::version() << " — " << drone->model() << " at "
                   << opt.drone.host << ':' << opt.drone.port << ". 'help' lists commands.\n";
         processor.execute_line("connect");  // SDK mode; on failure 'connect' can be retried
-        return run(processor);
+        return run(*drone, processor, telemetry.get());
     } catch (const std::exception& e) {
         std::cerr << "tello: " << e.what() << '\n';
         return EXIT_FAILURE;

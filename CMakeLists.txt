@@ -35,6 +35,7 @@ add_library(tello STATIC
   src/drone_base.cpp
   src/tello_family.cpp
   src/factory.cpp
+  src/flight_guard.cpp
   src/state.cpp
   src/state_listener.cpp
 )
@@ -94,6 +95,7 @@ if(TELLO_BUILD_TESTS)
     tests/test_state.cpp
     tests/test_simulator.cpp
     tests/test_command_processor.cpp
+    tests/test_flight_guard.cpp
   )
   target_include_directories(tello_tests PRIVATE tests)
   target_link_libraries(tello_tests PRIVATE tello_sim tello_cli_core GTest::gtest_main)

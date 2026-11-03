@@ -60,5 +60,19 @@ int DroneBase::speed() { unsupported("speed"); }
 std::string DroneBase::attitude() { unsupported("attitude"); }
 std::string DroneBase::barometer() { unsupported("barometer"); }
 std::string DroneBase::tof_distance() { unsupported("tof"); }
+void DroneBase::keepalive() { unsupported("keepalive"); }
+
+std::chrono::steady_clock::duration DroneBase::idle_for() const {
+    if (last_activity_.load() == 0) {
+        return {};  // never talked to the drone: nothing to keep alive yet
+    }
+    const auto last = std::chrono::steady_clock::time_point(
+        std::chrono::steady_clock::duration(last_activity_.load()));
+    return std::chrono::steady_clock::now() - last;
+}
+
+void DroneBase::mark_activity() {
+    last_activity_.store(std::chrono::steady_clock::now().time_since_epoch().count());
+}
 
 }  // namespace drone

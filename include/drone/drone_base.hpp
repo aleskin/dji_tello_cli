@@ -1,5 +1,7 @@
 #pragma once
 
+#include <atomic>
+#include <chrono>
 #include <set>
 #include <string>
 #include <string_view>
@@ -59,11 +61,25 @@ public:
     [[nodiscard]] virtual std::string barometer();
     [[nodiscard]] virtual std::string tof_distance();
 
+    // Cheapest command that resets the drone's auto-land timer (Tello: 15 s of silence).
+    virtual void keepalive();
+
+    // Time since the model last talked to the drone (zero before the first command);
+    // FlightGuard sends keepalive() after a pause.
+    [[nodiscard]] std::chrono::steady_clock::duration idle_for() const;
+
 protected:
     DroneBase() = default;
 
+    // Families call this for every command sent, reply or not.
+    void mark_activity();
+
     // Throws NotSupported naming this model and the command.
     [[noreturn]] void unsupported(std::string_view command) const;
+
+private:
+    // steady_clock ticks; atomic because the keepalive thread reads it while the CLI commands.
+    std::atomic<std::chrono::steady_clock::rep> last_activity_{0};
 };
 
 }  // namespace drone

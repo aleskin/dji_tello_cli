@@ -67,6 +67,8 @@ public:
     [[nodiscard]] std::string barometer() override;    // metres
     [[nodiscard]] std::string tof_distance() override; // "100mm"
 
+    void keepalive() override;  // "command": harmless in SDK mode, resets the 15 s timer
+
 protected:
     TelloFamily(std::shared_ptr<ITransport> transport, DroneTimeouts timeouts);
 

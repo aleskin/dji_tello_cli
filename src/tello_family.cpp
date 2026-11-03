@@ -103,6 +103,7 @@ void TelloFamily::rc(int left_right, int forward_back, int up_down, int yaw) {
     check_range("rc b", forward_back, -kMaxRc, kMaxRc);
     check_range("rc c", up_down, -kMaxRc, kMaxRc);
     check_range("rc d", yaw, -kMaxRc, kMaxRc);
+    mark_activity();
     transport_->send("rc " + std::to_string(left_right) + " " + std::to_string(forward_back) + " " +
                     std::to_string(up_down) + " " + std::to_string(yaw));
 }
@@ -117,7 +118,10 @@ std::string TelloFamily::attitude() { return query("attitude?"); }
 std::string TelloFamily::barometer() { return query("baro?"); }
 std::string TelloFamily::tof_distance() { return query("tof?"); }
 
+void TelloFamily::keepalive() { expect_ok("command"); }
+
 void TelloFamily::expect_ok(const std::string& command) {
+    mark_activity();
     const std::string reply = transport_->request(command, timeouts_.action);
     if (reply != "ok") {
         throw TelloError(command + ": " + (reply.empty() ? std::string("empty reply") : reply));
@@ -125,6 +129,7 @@ void TelloFamily::expect_ok(const std::string& command) {
 }
 
 std::string TelloFamily::query(std::string_view command) {
+    mark_activity();
     std::string reply = transport_->request(command, timeouts_.query);
     if (reply.starts_with("error") || reply.starts_with("unknown")) {
         throw TelloError(std::string(command) + ": " + reply);
