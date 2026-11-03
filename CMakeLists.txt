@@ -90,6 +90,33 @@ target_link_libraries(tello_cli PRIVATE tello_cli_core tello_window replxx::repl
 set_target_properties(tello_cli PROPERTIES OUTPUT_NAME tello)
 tello_strict(tello_cli)
 
+# Packages (make package): only the "runtime" component goes in, replxx's own install rules stay out.
+include(GNUInstallDirs)
+install(TARGETS tello_cli tello-sim RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT runtime)
+install(FILES README.md CHANGELOG.md DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/doc/tello COMPONENT runtime)
+
+set(CPACK_PACKAGE_NAME "tello")
+set(CPACK_PACKAGE_VERSION "${TELLO_VERSION}")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Command-line controller for the DJI Tello drone, with a simulator")
+set(CPACK_PACKAGE_DESCRIPTION
+    "tello: interactive CLI for the DJI Tello (SDK 1.3/2.0): flight commands, missions, live video, photos, keyboard and gamepad flying. tello-sim: a fake drone on localhost.")
+set(CPACK_PACKAGE_VENDOR "Aleksandr Leskin")
+set(CPACK_PACKAGE_CONTACT "Aleksandr Leskin <aleksandr.leskin@virtuozzo.com>")
+set(CPACK_PACKAGING_INSTALL_PREFIX "/usr")
+set(CPACK_INSTALL_CMAKE_PROJECTS "${CMAKE_BINARY_DIR};${PROJECT_NAME};runtime;/")
+set(CPACK_STRIP_FILES ON)
+set(CPACK_INSTALL_DEFAULT_DIRECTORY_PERMISSIONS
+    OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
+set(CPACK_DEBIAN_PACKAGE_SECTION "utils")
+set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON) # FFmpeg and SDL2 runtime libraries
+set(CPACK_RPM_FILE_NAME RPM-DEFAULT)
+set(CPACK_RPM_PACKAGE_LICENSE "Proprietary")
+set(CPACK_RPM_PACKAGE_GROUP "Applications/System")
+set(CPACK_RPM_PACKAGE_AUTOREQ ON)
+set(CPACK_RPM_SPEC_MORE_DEFINE "%define _build_id_links none")
+include(CPack)
+
 option(TELLO_BUILD_TESTS "Build unit and simulator tests" ON)
 if(TELLO_BUILD_TESTS)
     enable_testing()

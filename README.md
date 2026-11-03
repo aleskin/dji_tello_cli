@@ -16,13 +16,15 @@ with a fake drone (`tello-sim`) so everything can be tried without flying.
 sudo apt install cmake g++ googletest libavcodec-dev libavformat-dev libavutil-dev libsdl2-dev
 ```
 
-Optional, for `make sanity-check`: `sudo apt install clang-tidy cppcheck`.
+Optional, for `make sanity-check`: `sudo apt install clang-tidy cppcheck`; for `make package`:
+`dpkg-dev` (`.deb`) and `rpm` (`.rpm`).
 
 ## Build and test
 
 ```bash
 make build      # build/tello, build/tello-sim
 make test       # unit tests + integration tests against the simulator
+make package    # Release build-package/tello_<ver>_amd64.deb and tello-<ver>-1.x86_64.rpm
 make clean
 ```
 

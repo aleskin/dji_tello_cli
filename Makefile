@@ -2,10 +2,12 @@
 CMAKE     ?= cmake
 CTEST     ?= $(patsubst %cmake,%ctest,$(CMAKE))
 BUILD_DIR ?= build
+PKG_DIR   ?= build-package
+CPACK     ?= $(patsubst %cmake,%cpack,$(CMAKE))
 JOBS      ?= $(shell nproc 2>/dev/null || echo 4)
 SIM_PORT  ?= 8889
 
-.PHONY: all build test sim run-sim clean bump-dry bump-version sanity-check format
+.PHONY: all build test sim run-sim clean bump-dry bump-version sanity-check format package
 
 all: build
 
@@ -34,7 +36,14 @@ run-sim: build
 	./$(BUILD_DIR)/tello --host 127.0.0.1 --port $(SIM_PORT)
 
 clean:
-	rm -rf $(BUILD_DIR)
+	rm -rf $(BUILD_DIR) $(PKG_DIR)
+
+# .deb and .rpm with tello and tello-sim: a separate Release build without tests → $(PKG_DIR)/.
+package:
+	$(CMAKE) -S . -B $(PKG_DIR) -DCMAKE_BUILD_TYPE=Release -DTELLO_BUILD_TESTS=OFF
+	$(CMAKE) --build $(PKG_DIR) -j $(JOBS)
+	cd $(PKG_DIR) && $(CPACK) -G "DEB;RPM"
+	@ls -1 $(PKG_DIR)/*.deb $(PKG_DIR)/*.rpm
 
 # Version bump: Makefile.version + CHANGELOG.md + TODO.md, one commit. TYPE=patch|minor|major.
 bump-dry:

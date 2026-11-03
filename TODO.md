@@ -19,7 +19,7 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 |---|---|---|---|
 | TEL-00018 | cli: геймпад / джойстик | ✅ Выполнена | 5 |
 | TEL-00021 | cli: позиционные фигуры (camera_to_center, круг) | ✅ Выполнена | 5 |
-| TEL-00022 | build: пакеты .deb и .rpm | Открыта | 5 |
+| TEL-00022 | build: пакеты .deb и .rpm | ✅ Выполнена | 5 |
 | TEL-00013 | Купить батарею и первый реальный полёт по чек-листу | ❗ Владелец | 2 |
 
 ## 📝 Детали задач
@@ -27,7 +27,7 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 ### 🔧 Build & Infrastructure
 
 ### [TEL-00022] build: пакеты .deb и .rpm
-- **Status:** Открыта
+- **Status:** ✅ Выполнена
 - **Complexity:** 5
 - **Description:** CPack: `make package` → `.deb`/`.rpm` с `tello` и `tello-sim`.
 
