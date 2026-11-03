@@ -101,7 +101,7 @@ set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Command-line controller for the DJI Tello
 set(CPACK_PACKAGE_DESCRIPTION
     "tello: interactive CLI for the DJI Tello (SDK 1.3/2.0): flight commands, missions, live video, photos, keyboard and gamepad flying. tello-sim: a fake drone on localhost.")
 set(CPACK_PACKAGE_VENDOR "Aleksandr Leskin")
-set(CPACK_PACKAGE_CONTACT "Aleksandr Leskin <aleksandr.leskin@virtuozzo.com>")
+set(CPACK_PACKAGE_CONTACT "Aleksandr Leskin <aleskinos@gmail.com>")
 set(CPACK_PACKAGING_INSTALL_PREFIX "/usr")
 set(CPACK_INSTALL_CMAKE_PROJECTS "${CMAKE_BINARY_DIR};${PROJECT_NAME};runtime;/")
 set(CPACK_STRIP_FILES ON)

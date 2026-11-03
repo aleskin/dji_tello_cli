@@ -5,7 +5,7 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 
 ---
 
-## ⚡ Next Task ID: TEL-00036
+## ⚡ Next Task ID: TEL-00037
 
 > Единственный счётчик задач. Берём это число как номер новой задачи и сразу инкрементируем.
 > Номер никогда не используется повторно.
@@ -20,6 +20,7 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 | TEL-00018 | cli: геймпад / джойстик | ✅ Выполнена | 5 |
 | TEL-00021 | cli: позиционные фигуры (camera_to_center, круг) | ✅ Выполнена | 5 |
 | TEL-00022 | build: пакеты .deb и .rpm | ✅ Выполнена | 5 |
+| TEL-00036 | build: личный email мейнтейнера в пакетах | ✅ Выполнена | 1 |
 | TEL-00013 | Купить батарею и первый реальный полёт по чек-листу | ❗ Владелец | 2 |
 
 ## 📝 Детали задач
@@ -30,6 +31,11 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 - **Status:** ✅ Выполнена
 - **Complexity:** 5
 - **Description:** CPack: `make package` → `.deb`/`.rpm` с `tello` и `tello-sim`.
+
+### [TEL-00036] build: личный email мейнтейнера в пакетах
+- **Status:** ✅ Выполнена
+- **Complexity:** 1
+- **Description:** В `.deb`/`.rpm` контакт `Aleksandr Leskin <aleskinos@gmail.com>` вместо рабочего адреса.
 
 ### 🛰️ Core
 
