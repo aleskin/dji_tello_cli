@@ -71,6 +71,7 @@ line separated by `;`; the line stops at the first error.
 | System | `help [cmd]`, `version`, `info`, `wait <s>`, `alias`, `aliases`, `unalias <name>`, `exit` |
 | Flight | `connect`, `takeoff`, `land`, `hover` (EDU), `emergency` (motors off, no confirmation) |
 | Movement | `forward/back/left/right/up/down <20..500 cm>`, `cw/ccw <1..360>`, `flip <l\|r\|f\|b>`, `speed <10..100>`, `go <x> <y> <z> <speed>`, `return` / `home` (fly back above the takeoff point, then `land`) |
+| Figures | `camera_to_center <x> <y>` / `camera_from_center <x> <y>` (turn the camera towards / away from a point, cm as `position` shows), `orbit <50..500 cm> [cw\|ccw] [speed]` / `circle` (circle the point that far ahead in 12 legs of 30°, camera to the center) |
 | Mission | `mission <file>`, `square <cm>` |
 | Keyboard | `keyboard` / `kb` (in flight: fly with the keys in the video window — WASD move, arrows up/down/turn, Esc back to commands), `kbspeed [10..100]` (stick deflection, default 40) |
 | Joystick | `joystick` / `js` (gamepad through the video window, works on the ground too: right stick moves, left stick climbs/turns, `a` takeoff, `b` land, `back`+`start` together emergency, Esc in the window or `guide` back) |

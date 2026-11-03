@@ -122,6 +122,7 @@ if(TELLO_BUILD_TESTS)
         tests/test_config.cpp
         tests/test_aliases.cpp
         tests/test_position.cpp
+        tests/test_figures.cpp
     )
     target_include_directories(tello_tests PRIVATE tests)
     target_link_libraries(tello_tests PRIVATE tello_sim tello_cli_core tello_window PkgConfig::FFMPEG GTest::gtest_main)

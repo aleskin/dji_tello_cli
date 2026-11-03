@@ -396,6 +396,37 @@ void CommandProcessor::register_commands()
             return_home();
         });
 
+    add({"camera_to_center",
+         {},
+         C::Movement,
+         "camera_to_center <x> <y>",
+         "turn the camera towards the point x y cm (as 'position' shows it)",
+         Capability::Position},
+        [this](const Args& a)
+        {
+            face_point(a, false);
+        });
+    add({"camera_from_center",
+         {},
+         C::Movement,
+         "camera_from_center <x> <y>",
+         "turn the camera away from the point x y cm",
+         Capability::Position},
+        [this](const Args& a)
+        {
+            face_point(a, true);
+        });
+    add({"orbit",
+         {"circle"},
+         C::Movement,
+         "orbit <radius> [cw|ccw] [speed]",
+         "fly a circle around the point radius cm ahead, camera to the center (50..500 cm)",
+         Capability::Position},
+        [this](const Args& a)
+        {
+            orbit(a);
+        });
+
     // Missions.
     add({"mission",
          {},
@@ -1455,6 +1486,139 @@ std::string legs(double cm, const char* positive, const char* negative)
 }
 
 } // namespace
+
+namespace
+{
+
+constexpr double kDegree = std::numbers::pi / 180.0;
+
+// Degrees into -180..180.
+double wrap(double degrees)
+{
+    degrees = std::fmod(degrees, 360.0);
+    if (degrees > 180.0)
+    {
+        degrees -= 360.0;
+    }
+    else if (degrees < -180.0)
+    {
+        degrees += 360.0;
+    }
+    return degrees;
+}
+
+// "cw 45" / "ccw 30", empty under one degree.
+std::string turn(double degrees)
+{
+    const auto whole = std::lround(wrap(degrees));
+    if (whole == 0)
+    {
+        return {};
+    }
+    return (whole > 0 ? "cw " : "ccw ") + std::to_string(std::abs(whole));
+}
+
+} // namespace
+
+void CommandProcessor::face_point(const Args& args, bool away)
+{
+    const char* name = away ? "camera_from_center" : "camera_to_center";
+    const std::string usage = std::string(name) + " <x> <y>";
+    if (args.size() != 2)
+    {
+        throw UsageError("usage: " + usage);
+    }
+    const int x = int_arg(usage, args[0]);
+    const int y = int_arg(usage, args[1]);
+    if (!airborne_)
+    {
+        throw UsageError(std::string(name) + ": not in the air");
+    }
+    const auto p = position_->position();
+    const double dx = x - p.x_cm;
+    const double dy = y - p.y_cm;
+    if (std::hypot(dx, dy) < 1.0)
+    {
+        throw UsageError(std::string(name) + ": the drone is at that point");
+    }
+    const double bearing = std::atan2(dy, dx) / kDegree + (away ? 180.0 : 0.0);
+    const std::string command = turn(bearing - p.heading_deg);
+    if (!command.empty() && run_chain(command) != Outcome::Done)
+    {
+        throw UsageError(std::string(name) + ": stopped");
+    }
+    std::string heading = std::to_string(position_->position().heading_deg);
+    heading.insert(0, 3 - std::min<std::size_t>(heading.size(), 3), '0');
+    out_ << name << ": heading " << heading << '\n';
+}
+
+void CommandProcessor::orbit(const Args& args)
+{
+    const char* usage = "orbit <radius> [cw|ccw] [speed]";
+    if (args.empty() || args.size() > 3)
+    {
+        throw UsageError(std::string("usage: ") + usage);
+    }
+    const int radius = int_arg(usage, args[0]);
+    if (radius < kMinOrbitCm || radius > kMaxOrbitCm)
+    {
+        throw UsageError("orbit radius must be " + std::to_string(kMinOrbitCm) + ".." +
+                         std::to_string(kMaxOrbitCm) + " cm, got " + std::to_string(radius));
+    }
+    double sign = 1.0;
+    if (args.size() > 1)
+    {
+        if (args[1] != "cw" && args[1] != "ccw")
+        {
+            throw UsageError(std::string("usage: ") + usage);
+        }
+        sign = args[1] == "cw" ? 1.0 : -1.0;
+    }
+    const int speed = args.size() > 2 ? int_arg(usage, args[2]) : kOrbitSpeed;
+    if (speed < kMinOrbitSpeed || speed > kMaxOrbitSpeed)
+    {
+        throw UsageError("orbit speed must be " + std::to_string(kMinOrbitSpeed) + ".." +
+                         std::to_string(kMaxOrbitSpeed) + ", got " + std::to_string(speed));
+    }
+    if (!airborne_)
+    {
+        throw UsageError("orbit: not in the air");
+    }
+    // The center is straight ahead; seen from it the drone sits at bearing heading + 180.
+    const auto start = position_->position();
+    const double cx = start.x_cm + radius * std::cos(start.heading_deg * kDegree);
+    const double cy = start.y_cm + radius * std::sin(start.heading_deg * kDegree);
+    const double from_center = start.heading_deg + 180.0;
+    out_ << "orbit: radius " << radius << " cm around (" << std::lround(cx) << ", "
+         << std::lround(cy) << "), " << kOrbitLegs << " legs\n";
+    for (int leg = 1; leg <= kOrbitLegs; ++leg)
+    {
+        const double bearing = from_center + sign * 360.0 * leg / kOrbitLegs;
+        const double tx = cx + radius * std::cos(bearing * kDegree);
+        const double ty = cy + radius * std::sin(bearing * kDegree);
+        // Each leg is aimed from the current estimate, so rounding does not add up.
+        const auto now = position_->position();
+        const double h = now.heading_deg * kDegree;
+        const double dx = tx - now.x_cm;
+        const double dy = ty - now.y_cm;
+        const auto forward = std::lround(dx * std::cos(h) + dy * std::sin(h));
+        const auto left = std::lround(dx * std::sin(h) - dy * std::cos(h));
+        std::string chain = "go " + std::to_string(forward) + " " + std::to_string(left) + " 0 " +
+                            std::to_string(speed);
+        if (const std::string t = turn(bearing + 180.0 - now.heading_deg); !t.empty())
+        {
+            chain += "; " + t;
+        }
+        if (run_chain(chain) != Outcome::Done)
+        {
+            throw UsageError("orbit: stopped after " + std::to_string(leg - 1) + " of " +
+                             std::to_string(kOrbitLegs) + " legs");
+        }
+    }
+    const auto end = position_->position();
+    out_ << "orbit: done, " << std::lround(std::hypot(end.x_cm - start.x_cm, end.y_cm - start.y_cm))
+         << " cm from the start ±" << std::lround(end.error_cm) << " cm\n";
+}
 
 void CommandProcessor::return_home()
 {

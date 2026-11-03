@@ -18,7 +18,7 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 | ID | Задача | Статус | Сл. |
 |---|---|---|---|
 | TEL-00018 | cli: геймпад / джойстик | ✅ Выполнена | 5 |
-| TEL-00021 | cli: позиционные фигуры (camera_to_center, круг) | Открыта | 5 |
+| TEL-00021 | cli: позиционные фигуры (camera_to_center, круг) | ✅ Выполнена | 5 |
 | TEL-00022 | build: пакеты .deb и .rpm | Открыта | 5 |
 | TEL-00013 | Купить батарею и первый реальный полёт по чек-листу | ❗ Владелец | 2 |
 
@@ -41,7 +41,7 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 - **Description:** Режим `joystick` через SDL2 GameController, мёртвая зона, кнопки takeoff/land/emergency.
 
 ### [TEL-00021] cli: позиционные фигуры (camera_to_center, круг)
-- **Status:** Открыта
+- **Status:** ✅ Выполнена
 - **Complexity:** 5
 - **Description:** Перенос `camera_to_center` / `camera_from_center` из Rust; облёт точки по кругу
   через `curve`/`go`, радиус по высоте, вращение во время облёта.

@@ -96,6 +96,12 @@ struct PadButtons
 };
 
 constexpr int kDefaultKeyboardSpeed = 40;
+constexpr int kOrbitLegs = 12;  // 30 degrees each, camera to the center at every leg end
+constexpr int kOrbitSpeed = 30; // cm/s when not given
+constexpr int kMinOrbitCm = 50; // a 30-degree leg must stay longer than go's 20 cm
+constexpr int kMaxOrbitCm = 500;
+constexpr int kMinOrbitSpeed = 10;
+constexpr int kMaxOrbitSpeed = 100;
 constexpr int kDefaultDeadzone = 10;
 constexpr std::chrono::milliseconds kKeyboardPeriod{50}; // rc at 20 Hz
 
@@ -216,6 +222,8 @@ private:
     void feed_motion(std::optional<std::chrono::steady_clock::time_point>& last);
     void print_position() const;
     void return_home();
+    void face_point(const Args& args, bool away);
+    void orbit(const Args& args);
     [[nodiscard]] video::Osd osd() const;
 
     drone::DroneBase& drone_;
