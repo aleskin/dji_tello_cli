@@ -1,359 +1,116 @@
-# DJI Tello Drone Controller
+# DJI Tello CLI
 
-A simple interactive command-line application written in Rust for controlling DJI Tello drones.
-
-## Overview
-
-This application provides a GDB-like interactive shell interface for controlling a DJI Tello drone. It allows you to send commands to the drone through a simple command-line interface, with support for multiple commands in a single input.
+Interactive command-line controller for the DJI / Ryze Tello drone, written in C++20,
+with a fake drone (`tello-sim`) so everything can be tried without flying.
 
 ## Requirements
 
-- Rust and Cargo installed on your system
-- DJI Tello or Tello EDU drone
-- Computer with Wi-Fi capability
+- Linux, `g++` ≥ 13 or `clang++` ≥ 16, `cmake` ≥ 3.20
+- GoogleTest sources in `/usr/src/googletest` (otherwise CMake downloads v1.14.0)
+- Internet on the first configure: the line editor [replxx](https://github.com/AmokHuginnsson/replxx)
+  is fetched by CMake
 
-## Compatibility
-
-This library has been tested with:
-- DJI Tello (basic model)
-- DJI Tello EDU
-
-Please note that different Tello models may have varying levels of support for certain commands:
-- Basic Tello drones may have limited photo storage capabilities
-- Some functions might work differently based on firmware version
-- Media handling capabilities vary between models
-
-## Getting Started
-
-1. Power on your DJI Tello drone
-2. Connect to the drone's Wi-Fi network from your computer
-3. Clone this repository and navigate to the project directory
-4. Run the application:
-
-```
-cargo run
+```bash
+sudo apt install cmake g++ googletest
 ```
 
-## Features
+Optional, for `make sanity-check`: `sudo apt install clang-tidy cppcheck`.
 
-### Enhanced Interactive Command Mode
+## Build and test
 
-The application provides a shell-like interface with advanced features for an improved user experience:
-
-- **Command History**: Use the up and down arrow keys to navigate through previously entered commands
-- **Command Editing**: Use left and right arrow keys to move within the current command for editing
-- **Tab Completion**: Press the Tab key to autocomplete commands
-- **History Search**: Use Ctrl+R to search through command history
-- **Persistent History**: Command history is saved between sessions in the ~/.tello_history file
-
-The command prompt looks like this:
-
-```
-> 
+```bash
+make build      # build/tello, build/tello-sim
+make test       # unit tests + integration tests against the simulator
+make clean
 ```
 
-### Available Commands
+## Try it without a drone
 
-Currently, the application supports the following commands:
-
-#### Application Control
-
-- `help`: Show a list of all available commands
-  - Example: `help` (displays all commands with descriptions)
-  - Can be used at any time during operation
-
-- `wait <seconds>`: Insert a specific delay between commands
-  - Example: `wait 2.5` (wait for 2.5 seconds before executing the next command)
-  - Useful for creating more precise flight sequences
-  - Can be used in command chains with semicolons: `takeoff; wait 5; land`
-
-- `info`: Display drone information including SDK version, serial number, hardware info, firmware version, battery level, and Wi-Fi signal strength
-  - Example: `info` (shows detailed drone status information)
-  - Can be used anytime when connected to the drone
-
-- `state`: Display current telemetry data from the drone
-  - Example: `state` (shows real-time telemetry information)
-  - Includes attitude, speed, battery level, time in flight, etc.
-  
-- `exit`: Exit the application
-
-#### Basic Flight Controls
-
-- `takeoff [height]`: Take off with an optional height parameter in meters
-  - Default height: 1 meter
-  - Maximum allowed height: 8 meters
-  - Example: `takeoff 2` (take off and hover at 2 meters)
-  
-- `land`: Land the drone safely
-  - Example: `land`
-
-#### Movement Controls
-
-- `forward <distance>`: Move the drone forward by the specified distance in centimeters
-  - Range: 1-500 cm
-  - Example: `forward 100` (move forward 1 meter)
-
-- `back <distance>`: Move the drone backward by the specified distance in centimeters
-  - Range: 1-500 cm
-  - Example: `back 50` (move backward 0.5 meters)
-
-- `left <distance>`: Move the drone left by the specified distance in centimeters
-  - Range: 1-500 cm
-  - Example: `left 30` (move left 0.3 meters)
-
-- `right <distance>`: Move the drone right by the specified distance in centimeters
-  - Range: 1-500 cm
-  - Example: `right 80` (move right 0.8 meters)
-
-- `up <distance>`: Move the drone up by the specified distance in centimeters
-  - Range: 1-500 cm
-  - Example: `up 100` (move up 1 meter)
-
-- `down <distance>`: Move the drone down by the specified distance in centimeters
-  - Range: 1-500 cm
-  - Example: `down 50` (move down 0.5 meters)
-
-#### Advanced Flight Controls
-
-- `flip <direction>`: Perform a flip in the specified direction
-  - Directions: 'l' (left), 'r' (right), 'f' (forward), 'b' (back)
-  - Example: `flip f` (perform a forward flip)
-  - Note: Requires sufficient battery (>50%)
-
-- `speed <value>`: Set the drone's speed in cm/s
-  - Range: 10-100 cm/s
-  - Example: `speed 50` (set speed to 50 cm/s)
-  - Default: 30 cm/s
-
-- `go <x> <y> <z> <speed>`: Move drone to specific coordinates at set speed
-  - Example: `go 100 50 30 20` (move to x=100cm, y=50cm, z=30cm at 20cm/s)
-  - Coordinates are relative to current position
-
-- `curve <x1> <y1> <z1> <x2> <y2> <z2> <speed>`: Fly in a curve through specified points
-  - Example: `curve 50 50 20 100 100 50 20` (fly through two points at 20cm/s)
-  - Creates a smooth arc through the specified coordinates
-
-#### Rotation Controls
-
-- `rotate_cw <degrees>`: Rotate the drone clockwise by the specified number of degrees
-  - Example: `rotate_cw 90` (rotate 90 degrees clockwise)
-
-- `rotate_ccw <degrees>`: Rotate the drone counter-clockwise by the specified number of degrees
-  - Example: `rotate_ccw 45` (rotate 45 degrees counter-clockwise)
-
-- `camera_to_center <x> <y>`: Point the camera towards a specific center point
-  - Example: `camera_to_center 0 0` (point camera towards the center point at coordinates (0,0))
-
-- `camera_from_center <x> <y>`: Point the camera away from a specific center point
-  - Example: `camera_from_center 0 0` (point camera away from the center point)
-
-#### Position Management
-
-- `position <x> <y> <z>`: Set the current position of the drone for camera positioning calculations
-  - Example: `position 1 2 3` (set drone position to coordinates (1,2,3))
-  
-- `get_position`: Get the current tracked position of the drone
-  - Example: `get_position` (displays current X, Y, Z coordinates)
-
-#### Media Management
-
-- `media list`: List all media files stored on the drone
-  - Example: `media list`
-  - Note: Some Tello models have limited media listing capabilities
-
-- `media download <filename>`: Download a specific file from the drone
-  - Example: `media download photo_01.jpg`
-
-- `media direct <filename>`: Download a specific file using direct TCP connection
-  - Example: `media direct photo_01.jpg`
-  - Uses port 8888 for more efficient file transfer
-  - This is a more reliable method for large files
-
-- `media delete <filename>`: Delete a specific file from the drone
-  - Example: `media delete photo_01.jpg`
-
-- `media deleteall`: Delete all media files from the drone
-  - Example: `media deleteall`
-
-- `media path <path>`: Set the local directory path where downloaded files are stored
-  - Example: `media path /home/user/tello_photos`
-  - Default path: `./tello_media`
-
-#### Camera Controls
-
-- `photo`: Take a photo with the drone's camera
-  - Example: `photo`
-  - The library will try multiple commands to ensure compatibility with different Tello models
-  - Note: Some models may not store photos internally and require the official app
-
-- `video start`: Start recording video
-  - Example: `video start`
-  - Enables the video stream which can be captured
-
-- `video stop`: Stop recording video
-  - Example: `video stop`
-
-### Multiple Commands
-
-You can execute multiple commands in sequence by separating them with semicolons (`;`):
-
-```
-> takeoff 2; forward 100; photo; back 100; land
+```bash
+make run-sim    # starts tello-sim on 127.0.0.1:8889 and the CLI against it
 ```
 
-This will instruct the drone to:
-1. Take off to a height of 2 meters
-2. Move forward by 1 meter
-3. Take a photo
-4. Move back by 1 meter
-5. Land
+or in two terminals:
 
-## Example: Flying in a Square Pattern
-
-Here's how to make the drone fly in a square pattern of 1 meter per side, taking a photo at each corner:
-
-```
-> takeoff 1.5
-> forward 100
-> photo
-> right 100
-> photo
-> back 100
-> photo
-> left 100
-> photo
-> land
+```bash
+make sim                                     # terminal 1: the fake drone, logs every command
+./build/tello --host 127.0.0.1 --port 8889   # terminal 2
 ```
 
-## Example: Flying in a Circle with Camera Pointing to Center
+`tello-sim --help` lists its options: drone model (`--model tello|tello-edu`), starting battery and
+accelerated drain (`--battery`, `--drain`), and failure modes (`--drop`, `--delay`, `--fail-cmd`).
 
-Here's an example of how to make the drone fly in a circle with a radius of 5 meters at a height of 3 meters, with the camera always pointed towards the center of the circle, while recording video of the entire flight:
+## Fly
+
+1. Power on the drone and join its Wi-Fi (`TELLO-XXXXXX`).
+2. Run `./build/tello` (defaults: drone `192.168.10.1:8889`, telemetry on UDP 8890).
+   For a Tello EDU add `--model tello-edu`.
+3. Type `help`.
 
 ```
-> takeoff 3
-> video start
-> position 5 0 3; camera_to_center 0 0; rotate_cw 45; position 3.5 3.5 3; camera_to_center 0 0; rotate_cw 45; position 0 5 3; camera_to_center 0 0; rotate_cw 45; position -3.5 3.5 3; camera_to_center 0 0; rotate_cw 45; position -5 0 3; camera_to_center 0 0; rotate_cw 45; position -3.5 -3.5 3; camera_to_center 0 0; rotate_cw 45; position 0 -5 3; camera_to_center 0 0; rotate_cw 45; position 3.5 -3.5 3; camera_to_center 0 0; rotate_cw 45; position 5 0 3
-> video stop
-> media list
-> media download circle_flight.mp4
-> land
+tello> takeoff; up 50; cw 90
+tello> battery
+tello> land
 ```
 
-## Project Structure
+Options: `--host`, `--port`, `--state-port` (0 = no telemetry), `--model`, `--mission FILE`.
 
-The project is organized into several key components:
+## Commands
 
-- `src/main.rs`: Contains the main application logic, startup routines, and error handling
-- `src/command_line.rs`: Implements the interactive command line interface, command parsing, and execution
-- `src/tello.rs`: Core library that implements the Tello struct and methods for communicating with the drone
-- `src/tello_movement.rs`: Contains specialized movement-related methods for the Tello struct
+Only the commands the selected model supports are shown by `help`. Several commands go on one
+line separated by `;`; the line stops at the first error.
 
-### Code Organization
+| Group | Commands |
+|---|---|
+| System | `help [cmd]`, `version`, `info`, `wait <s>`, `exit` |
+| Flight | `connect`, `takeoff`, `land`, `hover` (EDU), `emergency` (motors off, no confirmation) |
+| Movement | `forward/back/left/right/up/down <20..500 cm>`, `cw/ccw <1..360>`, `flip <l\|r\|f\|b>`, `speed <10..100>`, `go <x> <y> <z> <speed>` |
+| Mission | `mission <file>`, `square <cm>` |
+| Telemetry | `battery`, `height`, `wifi`, `get_speed`, `temp`, `time`, `attitude`, `baro`, `tof`, `sdk` (EDU), `sn` (EDU), `state` |
 
-The application uses a modular architecture with separation of concerns:
+`takeoff` has no height argument: take off, then `up <cm>`.
 
-#### Core Drone Communication
-- **Tello Struct**: Main interface for drone communication
-  - Manages socket connections
-  - Handles command sending and response parsing
-  - Provides high-level methods for drone control
+### Safety
 
-#### Command Line Interface
-- **CommandProcessor**: Parses and processes user input
-- **CommandInfo**: Stores information about available commands
-- **CommandCategory**: Organizes commands by category for better user experience
+- **Keepalive**: the drone lands by itself after 15 s without commands; the CLI sends a keepalive
+  when you are quiet.
+- **Low battery**: a warning at 15 %, an automatic `land` at 10 % (from telemetry).
+- **Ctrl+C** in flight lands the drone; it never quits the program with the drone in the air.
+  On the ground it only clears the line. `exit` or Ctrl+D quits.
 
-#### Movement Control
-- Specialized methods for drone movement and positioning
-- Position tracking for advanced camera control
-- Functions for precise camera orientation
+### Missions
 
-#### Media Management
-- Methods for listing, downloading and deleting media files
-- Direct TCP file transfer support
-- Local file system integration
+A mission is a text file with one command line per line; `#` starts a comment.
+On the first failing line the mission stops and the drone lands.
 
-## Technical Details
+```
+# mission.txt
+takeoff
+up 50
+square 100
+land
+```
 
-The application connects to the Tello drone via UDP on port 8889, following the official [Tello SDK 2.0 Protocol](https://dl-cdn.ryzerobotics.com/downloads/Tello/Tello%20SDK%202.0%20User%20Guide.pdf).
+```bash
+./build/tello --mission mission.txt        # exit code 0 only if every line succeeded
+```
 
-### Network Communication
+## Architecture
 
-The application uses several UDP ports for different purposes:
-- Port 8889: Command communication with the drone
-- Port 8890: Local port for receiving responses
-- Port 8891: Receiving state/telemetry information
-- Port 8888: Reserved for direct file transfers
+Three layers; the control code (CLI, missions, keepalive) knows only the first one:
 
-### Command Processing Pipeline
+1. `drone::DroneBase` (`include/drone/`): vendor-neutral commands; each defaults to
+   `NotSupported`, and `capabilities()` says what a model has.
+2. `tello::TelloFamily` (`include/tello/`): the Tello text protocol over UDP, SDK 1.3 command set.
+3. Models: `TelloClassic` (original Tello, SDK 1.3) and `TelloEdu` (SDK 2.0: `stop`, `sdk?`, `sn?`).
 
-1. User enters command in the interactive shell
-2. Command is parsed and split into individual commands if separated by semicolons
-3. Each command is matched against available command handlers
-4. Command handlers validate parameters and convert them to appropriate formats
-5. Corresponding Tello struct methods are called
-6. Command results are displayed to the user
+`drone::make_drone()` is the only place that picks a model. See `AGENTS.md` for the conventions.
 
-### Telemetry and Response Handling
+## Versioning
 
-The library intelligently handles drone responses:
-- Distinguishes between command responses and telemetry data
-- Automatically processes telemetry data when received instead of command responses
-- Provides meaningful feedback even when the drone's response format varies
-
-### Media Files
-
-The media files captured by the drone are:
-- Temporarily stored on the drone's internal memory
-- Can be downloaded to your computer using the `media download` command
-- Can be downloaded more efficiently using the `media direct` command for TCP-based transfers
-- Can be deleted from the drone to free up space
-
-By default, downloaded files are stored in the `./tello_media` directory, but you can change this using the `media path` command.
-
-### Photo Capture Compatibility
-
-Different Tello models use different commands for photo capture. This library automatically:
-1. Attempts to use the `snapshot` command first
-2. If that fails, tries the `takepic` command for Tello EDU models
-3. Provides clear feedback about which method worked
-
-Note that some Tello models don't support internal photo storage and only work with the official app.
-
-## Known Limitations
-
-- Some Tello models have limited media handling capabilities
-- Photo capture might not work on all drone models or firmware versions
-- The drone must be connected to the computer's Wi-Fi, which means you can't use Wi-Fi for internet connection simultaneously without additional hardware
-- Media listing may not be fully supported on some models
-
-## Troubleshooting
-
-### Connection Issues
-- Ensure you're connected to the Tello's Wi-Fi network
-- Try restarting both the drone and the application
-- Check that no other application is using the required UDP ports (8889, 8890, 8891)
-
-### Command Response Issues
-- If commands are failing, check battery level with `info` or `state` command
-- Ensure you're within the operational range of the drone
-- Some commands may not be available on certain Tello models
-
-## Future Enhancements
-
-Planned features for future versions:
-- Support for more drone commands (complex movement patterns)
-- Live video streaming preview
-- Telemetry data visualization
-- Predefined flight patterns and automated sequences
-- Mission planning with waypoints
-
-See the ROADMAP.md file for a detailed development plan.
+`Makefile.version` holds `MAJOR.MINOR.PATCH`. `make bump-dry` previews a release,
+`make bump-version` writes it: version, `CHANGELOG.md`, `TODO.md`, one commit.
 
 ## License
 
-This project is open-source and available under the MIT License.
-
-## Contribution
-
-Contributions are welcome! Feel free to submit issues or pull requests.
+MIT.

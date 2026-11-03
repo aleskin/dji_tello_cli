@@ -4,14 +4,9 @@
 # sanity-check reports
 /logs/
 
-# Rust build directory (legacy/rust)
-target/
-
-# Debug output
-*.rs.bk
-
-# Cargo lock file (can be included in applications, but excluded in libraries)
-# Cargo.lock
+# Stale build output of the removed Rust prototype (~800 MB): safe to delete, kept ignored
+# so it is never committed by accident.
+/target/
 
 # IDE specific files
 .idea/

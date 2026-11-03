@@ -1,7 +1,7 @@
 # AGENTS.md — DJI Tello CLI Project Guide for AI Assistants
 
 Interactive command-line controller for the DJI Tello drone, written in **C++20**.
-The old Rust prototype lives in `legacy/rust/` until the C++ CLI reaches parity (TEL-00011).
+The old Rust prototype was removed in TEL-00011 (see git history before that commit).
 
 ---
 
@@ -116,7 +116,6 @@ include/tello/        layer 2 (family) and layer 3 (models)
 src/                  library implementation + CLI main
 sim/                  tello-sim: fake drone (library + executable), used by tests and by hand
 tests/                GoogleTest: MockTransport unit tests + simulator integration tests
-legacy/rust/          old Rust prototype (reference only, removed in TEL-00011)
 ```
 
 Rules:

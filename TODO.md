@@ -22,7 +22,7 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 | TEL-00007 | cli: команды безопасности emergency / stop | ✅ Выполнена | 2 |
 | TEL-00008 | cli: миссии из файла | ✅ Выполнена | 3 |
 | TEL-00010 | build: make sanity-check (clang-tidy, cppcheck) | ✅ Выполнена | 3 |
-| TEL-00011 | build: удалить legacy/rust, README под C++ | 📂 Открыта | 2 |
+| TEL-00011 | build: удалить legacy/rust, README под C++ | ✅ Выполнена | 2 |
 | TEL-00012 | sim: режимы сбоев (потери пакетов, error, таймауты) | ✅ Выполнена | 3 |
 | TEL-00013 | Купить батарею и первый реальный полёт по чек-листу | ❗ Владелец | 2 |
 | TEL-00028 | core: иерархия дронов база → семейство → модель | ✅ Выполнена | 8 |
@@ -39,7 +39,7 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
   по `compile_commands.json` + `cppcheck --enable=warning,performance`. Вывод в `logs/sanity/last.txt`.
 
 ### [TEL-00011] build: удалить legacy/rust, README под C++
-- **Status:** Открыта
+- **Status:** ✅ Выполнена
 - **Complexity:** 2
 - **Description:** После TEL-00005 (паритет CLI): удалить `legacy/rust/`, переписать `README.md`
   (сборка, `make sim`, команды), убрать Rust-строки из `.gitignore`.
