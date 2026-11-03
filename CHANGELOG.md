@@ -5,6 +5,16 @@ Format: `## [version] — YYYY-MM-DD` followed by grouped changes. Written by `m
 
 ---
 
+## [0.0.5] — 2026-11-03
+
+### Added
+- **[TEL-00036]** build: use personal maintainer email in packages
+- **[TEL-00022]** build: add make package producing .deb and .rpm via CPack
+- **[TEL-00021]** cli: add camera_to_center/from_center and orbit figures
+- **[TEL-00018]** cli: add joystick mode flying with a gamepad via the window
+
+---
+
 ## [0.0.4] — 2026-11-03
 
 ### Fixed
