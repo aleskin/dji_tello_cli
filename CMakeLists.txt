@@ -53,9 +53,22 @@ add_executable(tello-sim sim/main.cpp)
 target_link_libraries(tello-sim PRIVATE tello_sim)
 tello_strict(tello-sim)
 
-# CLI. The target name differs from the library; the binary is still called "tello".
+# CLI: command layer as a library (tested), the binary adds line editing (replxx).
+add_library(tello_cli_core STATIC src/cli/command_processor.cpp)
+target_include_directories(tello_cli_core PUBLIC src)
+target_link_libraries(tello_cli_core PUBLIC tello)
+tello_strict(tello_cli_core)
+
+include(FetchContent)
+set(REPLXX_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(REPLXX_BUILD_PACKAGE OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(replxx
+  URL https://github.com/AmokHuginnsson/replxx/archive/refs/tags/release-0.0.4.tar.gz)
+FetchContent_MakeAvailable(replxx)
+
+# The target name differs from the library; the binary is still called "tello".
 add_executable(tello_cli src/main.cpp)
-target_link_libraries(tello_cli PRIVATE tello)
+target_link_libraries(tello_cli PRIVATE tello_cli_core replxx::replxx)
 set_target_properties(tello_cli PROPERTIES OUTPUT_NAME tello)
 tello_strict(tello_cli)
 
@@ -80,9 +93,10 @@ if(TELLO_BUILD_TESTS)
     tests/test_udp_transport.cpp
     tests/test_state.cpp
     tests/test_simulator.cpp
+    tests/test_command_processor.cpp
   )
   target_include_directories(tello_tests PRIVATE tests)
-  target_link_libraries(tello_tests PRIVATE tello_sim GTest::gtest_main)
+  target_link_libraries(tello_tests PRIVATE tello_sim tello_cli_core GTest::gtest_main)
   tello_strict(tello_tests)
   include(GoogleTest)
   gtest_discover_tests(tello_tests)

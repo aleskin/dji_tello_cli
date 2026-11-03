@@ -17,7 +17,7 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 
 | ID | Задача | Статус | Сл. |
 |---|---|---|---|
-| TEL-00005 | cli: REPL на C++ (паритет с Rust) | 📂 Открыта | 8 |
+| TEL-00005 | cli: REPL на C++ (паритет с Rust) | ✅ Выполнена | 8 |
 | TEL-00006 | core: keepalive и автопосадка при низком заряде | 📂 Открыта | 3 |
 | TEL-00007 | cli: команды безопасности emergency / stop | 📂 Открыта | 2 |
 | TEL-00008 | cli: миссии из файла | 📂 Открыта | 3 |
@@ -75,7 +75,7 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 ### 💻 CLI
 
 ### [TEL-00005] cli: REPL на C++ (паритет с Rust)
-- **Status:** Открыта
+- **Status:** ✅ Выполнена
 - **Complexity:** 8
 - **Description:** Перенос `legacy/rust/src/command_line.rs`: реестр команд с категориями, `help`,
   `version`, `info`, `wait`, `exit`, несколько команд через `;`, история и автодополнение
