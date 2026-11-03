@@ -12,11 +12,11 @@ The old Rust prototype was removed in TEL-00011 (see git history before that com
    Tests and manual checks go to the simulator (`tello-sim`) on `127.0.0.1` only.
    Real flights are done by the owner only — a wrong command means a drone in a tree.
 
-2. **VERSION BUMP — PATCH ONLY, NEVER ON YOUR OWN.**
+2. **VERSION BUMP — ONLY WHEN THE OWNER ASKS, PATCH BY DEFAULT.**
    `Makefile.version` is the single source of truth for the version. Do not touch it by hand.
-   When the owner says "бамп" / "bump" → `make bump-dry`, show output, wait for "делай", then `make bump-version`.
+   When the owner says "бамп" / "bump" → run `make bump-version` right away (no dry-run, no extra
+   confirmation) and report the new version and the CHANGELOG section.
    `TYPE=minor` / `TYPE=major` only if the owner says exactly "bump minor" / "bump major".
-   (Bump tooling: TEL-00009. Until it exists — do not bump at all.)
 
 3. **COMMIT WHEN A TEL TASK IS COMPLETED. NEVER PUSH.**
    One task = one commit, format below. `git push` is **strictly forbidden** — the owner pushes manually.
