@@ -5,7 +5,7 @@ BUILD_DIR ?= build
 JOBS      ?= $(shell nproc 2>/dev/null || echo 4)
 SIM_PORT  ?= 8889
 
-.PHONY: all build test sim run-sim clean bump-dry bump-version
+.PHONY: all build test sim run-sim clean bump-dry bump-version sanity-check
 
 all: build
 
@@ -37,3 +37,7 @@ bump-dry:
 
 bump-version:
 	python3 scripts/bump.py $(or $(TYPE),patch)
+
+# Static analysis report (clang-tidy + cppcheck) → logs/sanity/last.txt.
+sanity-check: build
+	bash scripts/sanity_check.sh

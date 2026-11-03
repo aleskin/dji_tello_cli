@@ -1,6 +1,9 @@
 # CMake build directory
 /build/
 
+# sanity-check reports
+/logs/
+
 # Rust build directory (legacy/rust)
 target/
 

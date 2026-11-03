@@ -1,0 +1,19 @@
+# make sanity-check. Families from TEL-00010; the noisiest single checks are off with a reason.
+Checks: >
+  -*,
+  bugprone-*,
+  cppcoreguidelines-*,
+  modernize-*,
+  performance-*,
+  -modernize-use-trailing-return-type,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-pro-type-reinterpret-cast,
+  -cppcoreguidelines-pro-type-vararg,
+  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
+  -bugprone-easily-swappable-parameters
+# reinterpret-cast: sockaddr casts are how POSIX sockets work.
+# pro-type-vararg: snprintf in format_state, the drone's telemetry format.
+# pointer-arithmetic: data()+size() ranges for std::from_chars.
+# easily-swappable-parameters: SDK signatures such as go(x, y, z, speed) and rc(a, b, c, d).
+# avoid-magic-numbers: SDK limits are named once; tests and defaults are literal on purpose.
+HeaderFilterRegex: '.*/(include/drone|include/tello|src|src/cli|sim)/[^/]+$'

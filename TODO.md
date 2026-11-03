@@ -21,7 +21,7 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 | TEL-00006 | core: keepalive и автопосадка при низком заряде | ✅ Выполнена | 3 |
 | TEL-00007 | cli: команды безопасности emergency / stop | ✅ Выполнена | 2 |
 | TEL-00008 | cli: миссии из файла | ✅ Выполнена | 3 |
-| TEL-00010 | build: make sanity-check (clang-tidy, cppcheck) | 📂 Открыта | 3 |
+| TEL-00010 | build: make sanity-check (clang-tidy, cppcheck) | ✅ Выполнена | 3 |
 | TEL-00011 | build: удалить legacy/rust, README под C++ | 📂 Открыта | 2 |
 | TEL-00012 | sim: режимы сбоев (потери пакетов, error, таймауты) | ✅ Выполнена | 3 |
 | TEL-00013 | Купить батарею и первый реальный полёт по чек-листу | ❗ Владелец | 2 |
@@ -33,7 +33,7 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 ### 🔧 Build & Infrastructure
 
 ### [TEL-00010] build: make sanity-check (clang-tidy, cppcheck)
-- **Status:** Открыта
+- **Status:** ✅ Выполнена
 - **Complexity:** 3
 - **Description:** `make sanity-check` → `clang-tidy` (bugprone, cppcoreguidelines, modernize, performance)
   по `compile_commands.json` + `cppcheck --enable=warning,performance`. Вывод в `logs/sanity/last.txt`.
