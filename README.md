@@ -71,7 +71,7 @@ line separated by `;`; the line stops at the first error.
 | Flight | `connect`, `takeoff`, `land`, `hover` (EDU), `emergency` (motors off, no confirmation) |
 | Movement | `forward/back/left/right/up/down <20..500 cm>`, `cw/ccw <1..360>`, `flip <l\|r\|f\|b>`, `speed <10..100>`, `go <x> <y> <z> <speed>` |
 | Mission | `mission <file>`, `square <cm>` |
-| Video | `video start` (record the camera to `~/Videos/tello/tello_DATE_TIME.mp4`), `video stop`, `video status` |
+| Video | `video start` (record the camera to `~/Videos/tello/tello_DATE_TIME.mp4`), `video stop`, `video status`, `photo` (JPEG of the current picture to `~/Pictures/tello/`) |
 | Telemetry | `battery`, `height`, `wifi`, `get_speed`, `temp`, `time`, `attitude`, `baro`, `tof`, `sdk` (EDU), `sn` (EDU), `state` |
 
 `takeoff` has no height argument: take off, then `up <cm>`.

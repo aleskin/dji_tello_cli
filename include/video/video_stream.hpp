@@ -14,13 +14,14 @@ namespace video
 
 struct StreamStatus
 {
-    bool receiving = false;    // a packet arrived during the last second
-    std::int64_t packets = 0;  // H.264 access units since the stream opened
-    int width = 0;             // 0 until the stream parameters are known
+    bool receiving = false;   // a packet arrived during the last second
+    std::int64_t packets = 0; // H.264 access units since the stream opened
+    std::int64_t frames = 0;  // pictures decoded (the last one is what photo saves)
+    int width = 0;            // 0 until the stream parameters are known
     int height = 0;
-    std::string recording;     // file being written, empty when not recording
+    std::string recording;             // file being written, empty when not recording
     bool waiting_for_keyframe = false; // recording asked for, file opens at the next keyframe
-    std::string error;         // last failure (open, write), empty if none
+    std::string error;                 // last failure (open, write), empty if none
 };
 
 // Reads an H.264 stream (an FFmpeg URL such as "udp://0.0.0.0:11111") in a background thread
@@ -46,6 +47,13 @@ public:
 
     [[nodiscard]] StreamStatus status() const;
 
+    // Saves the last decoded picture as JPEG. Throws std::runtime_error when there is none yet
+    // or encoding fails.
+    void save_photo(const std::filesystem::path& path) const;
+
+    // Blocks until a picture has been decoded or `timeout` passed; true if there is one.
+    bool wait_for_frame(std::chrono::milliseconds timeout) const;
+
 private:
     struct Input;  // FFmpeg demuxer state
     struct Output; // FFmpeg muxer state
@@ -66,7 +74,10 @@ private:
     std::jthread thread_; // last: started after everything it uses exists
 };
 
-// ~/Videos/tello/tello_YYYY-MM-DD_HH-MM-SS.mp4 (directory created if missing).
+// dir/tello_YYYY-MM-DD_HH-MM-SS.mp4 (directory created if missing).
 [[nodiscard]] std::filesystem::path default_recording_path(const std::filesystem::path& dir);
+
+// dir/tello_YYYY-MM-DD_HH-MM-SS_mmm.jpg: milliseconds, so photos in one second do not collide.
+[[nodiscard]] std::filesystem::path default_photo_path(const std::filesystem::path& dir);
 
 } // namespace video

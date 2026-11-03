@@ -92,7 +92,8 @@ protected:
         drone->set_video_port(video_port);
         drone->connect();
         cli = std::make_unique<cli::CommandProcessor>(
-            *drone, out, cli::SessionInfo{"127.0.0.1", sim->command_port(), 0, dir});
+            *drone, out,
+            cli::SessionInfo{"127.0.0.1", sim->command_port(), 0, dir, dir / "photos"});
     }
     ~VideoCliTest() override
     {
@@ -139,6 +140,65 @@ TEST_F(VideoCliTest, RecordsPlayableMp4)
     EXPECT_GT(info.seconds, 1.0); // wall-clock timestamps survived the remux
 }
 
+// A JPEG on disk with the camera's size, read back by FFmpeg.
+std::pair<int, int> jpeg_size(const std::filesystem::path& file)
+{
+    AVFormatContext* ctx = nullptr;
+    std::pair<int, int> size{0, 0};
+    if (avformat_open_input(&ctx, file.string().c_str(), nullptr, nullptr) == 0)
+    {
+        if (avformat_find_stream_info(ctx, nullptr) >= 0 && ctx->nb_streams == 1 &&
+            ctx->streams[0]->codecpar->codec_id == AV_CODEC_ID_MJPEG)
+        {
+            size = {ctx->streams[0]->codecpar->width, ctx->streams[0]->codecpar->height};
+        }
+        avformat_close_input(&ctx);
+    }
+    return size;
+}
+
+TEST_F(VideoCliTest, PhotoStartsTheCameraAndSavesJpeg)
+{
+    EXPECT_TRUE(cli->execute_line("photo"));
+    EXPECT_NE(out.str().find("saved " + (dir / "photos").string()), std::string::npos) << out.str();
+    EXPECT_NE(out.str().find("camera stays on"), std::string::npos);
+    EXPECT_TRUE(sim->model().streaming);
+    out.str("");
+    EXPECT_TRUE(cli->execute_line("photo; photo")); // camera already on: immediate, no clash
+    EXPECT_EQ(out.str().find("camera stays on"), std::string::npos);
+
+    int photos = 0;
+    for (const auto& entry : std::filesystem::directory_iterator(dir / "photos"))
+    {
+        ++photos;
+        EXPECT_EQ(entry.path().extension(), ".jpg");
+        EXPECT_EQ(jpeg_size(entry.path()), (std::pair<int, int>{960, 720}));
+        EXPECT_GT(std::filesystem::file_size(entry.path()), 10'000u);
+    }
+    EXPECT_EQ(photos, 3);
+    cli->execute_line("video stop");
+    EXPECT_FALSE(sim->model().streaming);
+}
+
+TEST(VideoStreamTest, PhotoWithoutPictureThrows)
+{
+    video::VideoStream stream("udp://127.0.0.1:" + std::to_string(free_udp_port()));
+    EXPECT_FALSE(stream.wait_for_frame(milliseconds(100)));
+    EXPECT_THROW(stream.save_photo(std::filesystem::temp_directory_path() / "none.jpg"),
+                 std::runtime_error);
+}
+
+TEST(VideoPathTest, PhotoNamesAreUniquePerMillisecond)
+{
+    const auto dir = std::filesystem::temp_directory_path() / "tello_photo_names";
+    const auto a = video::default_photo_path(dir);
+    std::this_thread::sleep_for(milliseconds(2));
+    const auto b = video::default_photo_path(dir);
+    EXPECT_NE(a, b);
+    EXPECT_EQ(a.extension(), ".jpg");
+    std::filesystem::remove_all(dir);
+}
+
 TEST_F(VideoCliTest, StatusAndStopWithoutVideo)
 {
     cli->execute_line("video");
@@ -164,8 +224,8 @@ TEST(VideoStreamTest, DestructorStopsAWaitingReader)
         std::this_thread::sleep_for(milliseconds(200));
     }
     EXPECT_LT(std::chrono::steady_clock::now() - start, std::chrono::seconds(3));
-    EXPECT_FALSE(std::filesystem::exists(std::filesystem::temp_directory_path() /
-                                         "never_written.mp4"));
+    EXPECT_FALSE(
+        std::filesystem::exists(std::filesystem::temp_directory_path() / "never_written.mp4"));
 }
 
 TEST(VideoModelTest, TelloStreamsViaStreamon)

@@ -387,6 +387,20 @@ void CommandProcessor::register_commands()
         {
             video_command(a);
         });
+    add({"photo",
+         {},
+         C::Video,
+         "photo",
+         "save the current camera picture as JPEG in " + session_.photo_dir.string(),
+         Capability::Video},
+        [this](const Args& a)
+        {
+            if (!a.empty())
+            {
+                throw UsageError("usage: photo");
+            }
+            take_photo();
+        });
 
     // Telemetry: reads, named like the SDK queries without '?' ('battery?' works too).
     auto read_int = [this](const char* name, const char* help, Capability cap,
@@ -691,11 +705,7 @@ void CommandProcessor::video_command(const Args& args)
     }
     if (what == "start")
     {
-        if (!video_)
-        {
-            drone_.start_video();
-            video_ = std::make_unique<video::VideoStream>(drone_.video_source());
-        }
+        ensure_stream();
         const auto path = video::default_recording_path(session_.video_dir);
         video_->start_recording(path);
         out_ << "recording to " << path.string() << " (from the next keyframe)\n";
@@ -740,6 +750,39 @@ void CommandProcessor::video_command(const Args& args)
     {
         out_ << "error: " << s.error << '\n';
     }
+}
+
+void CommandProcessor::ensure_stream()
+{
+    if (!video_)
+    {
+        drone_.start_video();
+        video_ = std::make_unique<video::VideoStream>(drone_.video_source());
+    }
+}
+
+void CommandProcessor::take_photo()
+{
+    const bool started = !video_;
+    ensure_stream();
+    // A fresh stream needs SPS/PPS and a keyframe first: about a second on the Tello.
+    if (!video_->wait_for_frame(std::chrono::seconds(5)))
+    {
+        const std::string error = video_->status().error;
+        throw UsageError("photo: no picture from the camera" +
+                         (error.empty() ? std::string() : " (" + error + ")"));
+    }
+    const auto path = video::default_photo_path(session_.photo_dir);
+    try
+    {
+        video_->save_photo(path);
+    }
+    catch (const std::runtime_error& e)
+    {
+        throw UsageError(e.what());
+    }
+    out_ << "saved " << path.string() << (started ? " (camera stays on: 'video stop')" : "")
+         << '\n';
 }
 
 void CommandProcessor::print_state() const

@@ -45,6 +45,7 @@ struct SessionInfo
     std::uint16_t command_port = 0;
     std::uint16_t state_port = 0;    // 0 = telemetry off
     std::filesystem::path video_dir; // recordings go here (~/Videos/tello)
+    std::filesystem::path photo_dir; // photos go here (~/Pictures/tello)
 };
 
 // Interactive command layer. Knows only DroneBase: which model sits behind it decides what works.
@@ -112,6 +113,8 @@ private:
     void print_info();
     void print_state() const;
     void video_command(const Args& args);
+    void ensure_stream(); // streamon + reader, if not running yet
+    void take_photo();
 
     drone::DroneBase& drone_;
     std::ostream& out_;

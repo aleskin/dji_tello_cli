@@ -9,7 +9,11 @@ extern "C"
 }
 
 #include <array>
+#include <cstdio>
 #include <ctime>
+#include <fstream>
+#include <memory>
+#include <stdexcept>
 #include <system_error>
 #include <utility>
 
@@ -39,6 +43,9 @@ struct VideoStream::Input
 {
     AVFormatContext* context = nullptr;
     int stream_index = -1;
+    AVCodecContext* decoder = nullptr; // reader thread only
+    AVFrame* scratch = nullptr;        // reader thread only
+    AVFrame* latest = nullptr;         // last decoded picture, guarded by VideoStream::mutex_
 
     Input() = default;
     Input(const Input&) = delete;
@@ -47,6 +54,9 @@ struct VideoStream::Input
     Input& operator=(Input&&) = delete;
     ~Input()
     {
+        av_frame_free(&latest);
+        av_frame_free(&scratch);
+        avcodec_free_context(&decoder);
         avformat_close_input(&context);
     }
 
@@ -159,8 +169,7 @@ void VideoStream::open_output_locked()
         return;
     }
     AVStream* st = avformat_new_stream(out->context, nullptr);
-    if (st == nullptr ||
-        avcodec_parameters_copy(st->codecpar, input_->stream()->codecpar) < 0)
+    if (st == nullptr || avcodec_parameters_copy(st->codecpar, input_->stream()->codecpar) < 0)
     {
         status_.error = "cannot set up the MP4 stream";
         return;
@@ -205,9 +214,9 @@ void VideoStream::run(const std::stop_token& stop)
     AVDictionary* options = nullptr;
     // The drone sends no timestamps: take the arrival time, which also keeps pauses in the file.
     av_dict_set(&options, "use_wallclock_as_timestamps", "1", 0);
-    av_dict_set(&options, "fifo_size", "1000000", 0);    // 188-byte units: ~180 MB socket queue
-    av_dict_set(&options, "overrun_nonfatal", "1", 0);   // drop on overrun instead of failing
-    av_dict_set(&options, "buffer_size", "4194304", 0);  // kernel receive buffer
+    av_dict_set(&options, "fifo_size", "1000000", 0);   // 188-byte units: ~180 MB socket queue
+    av_dict_set(&options, "overrun_nonfatal", "1", 0);  // drop on overrun instead of failing
+    av_dict_set(&options, "buffer_size", "4194304", 0); // kernel receive buffer
     const AVInputFormat* format = av_find_input_format("h264");
     int rc = avformat_open_input(&input->context, source_.c_str(), format, &options);
     av_dict_free(&options);
@@ -236,6 +245,19 @@ void VideoStream::run(const std::stop_token& stop)
         status_.error = "no video in " + source_;
         return;
     }
+    // Decoder for photo (and the live window later); recording does not need it.
+    const AVCodec* h264 = avcodec_find_decoder(input->stream()->codecpar->codec_id);
+    input->decoder = h264 != nullptr ? avcodec_alloc_context3(h264) : nullptr;
+    input->scratch = av_frame_alloc();
+    input->latest = av_frame_alloc();
+    if (input->decoder == nullptr || input->scratch == nullptr || input->latest == nullptr ||
+        avcodec_parameters_to_context(input->decoder, input->stream()->codecpar) < 0 ||
+        avcodec_open2(input->decoder, h264, nullptr) < 0)
+    {
+        const std::scoped_lock lock(mutex_);
+        status_.error = "cannot open the H.264 decoder";
+        return;
+    }
     {
         const std::scoped_lock lock(mutex_);
         status_.width = input->stream()->codecpar->width;
@@ -256,13 +278,29 @@ void VideoStream::run(const std::stop_token& stop)
             std::this_thread::sleep_for(std::chrono::milliseconds(10)); // EAGAIN or a hiccup
             continue;
         }
+        if (packet->stream_index != input_->stream_index)
+        {
+            av_packet_unref(packet.get());
+            continue;
+        }
+        // Decode outside the lock; only the hand-over of the finished picture is guarded.
+        if (avcodec_send_packet(input_->decoder, packet.get()) == 0)
+        {
+            while (avcodec_receive_frame(input_->decoder, input_->scratch) == 0)
+            {
+                const std::scoped_lock lock(mutex_);
+                av_frame_unref(input_->latest);
+                av_frame_move_ref(input_->latest, input_->scratch);
+                ++status_.frames;
+            }
+        }
         const std::scoped_lock lock(mutex_);
-        if (packet->stream_index == input_->stream_index)
         {
             ++status_.packets;
             last_packet_ = std::chrono::steady_clock::now();
             // AV_PKT_FLAG_KEY is an int macro: test the bit on an unsigned copy.
-            const bool key = (static_cast<unsigned>(packet->flags) & static_cast<unsigned>(AV_PKT_FLAG_KEY)) != 0;
+            const bool key = (static_cast<unsigned>(packet->flags) &
+                              static_cast<unsigned>(AV_PKT_FLAG_KEY)) != 0;
             if (!output_ && !pending_path_.empty() && key)
             {
                 open_output_locked();
@@ -275,8 +313,8 @@ void VideoStream::run(const std::stop_token& stop)
                 {
                     output_->first_dts = packet->dts;
                 }
-                std::int64_t ts = av_rescale_q(packet->dts - output_->first_dts, in->time_base,
-                                               out->time_base);
+                std::int64_t ts =
+                    av_rescale_q(packet->dts - output_->first_dts, in->time_base, out->time_base);
                 if (output_->last_dts != AV_NOPTS_VALUE && ts <= output_->last_dts)
                 {
                     ts = output_->last_dts + 1; // MP4 needs strictly increasing timestamps
@@ -297,6 +335,114 @@ void VideoStream::run(const std::stop_token& stop)
         }
         av_packet_unref(packet.get());
     }
+}
+
+bool VideoStream::wait_for_frame(std::chrono::milliseconds timeout) const
+{
+    const auto until = std::chrono::steady_clock::now() + timeout;
+    for (;;)
+    {
+        {
+            const std::scoped_lock lock(mutex_);
+            if (status_.frames > 0)
+            {
+                return true;
+            }
+        }
+        if (std::chrono::steady_clock::now() >= until)
+        {
+            return false;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+}
+
+void VideoStream::save_photo(const std::filesystem::path& path) const
+{
+    struct FrameDeleter
+    {
+        void operator()(AVFrame* p) const
+        {
+            av_frame_free(&p);
+        }
+    };
+    struct ContextDeleter
+    {
+        void operator()(AVCodecContext* p) const
+        {
+            avcodec_free_context(&p);
+        }
+    };
+
+    std::unique_ptr<AVFrame, FrameDeleter> frame;
+    {
+        const std::scoped_lock lock(mutex_);
+        if (!input_ || status_.frames == 0)
+        {
+            throw std::runtime_error("no picture yet: is the stream running?");
+        }
+        frame.reset(av_frame_clone(input_->latest)); // a reference, not a copy of the pixels
+    }
+    if (!frame || frame->format != AV_PIX_FMT_YUV420P)
+    {
+        throw std::runtime_error("photo: unexpected picture format");
+    }
+
+    const AVCodec* mjpeg = avcodec_find_encoder(AV_CODEC_ID_MJPEG);
+    std::unique_ptr<AVCodecContext, ContextDeleter> ctx(
+        mjpeg != nullptr ? avcodec_alloc_context3(mjpeg) : nullptr);
+    if (!ctx)
+    {
+        throw std::runtime_error("photo: no JPEG encoder in libavcodec");
+    }
+    ctx->width = frame->width;
+    ctx->height = frame->height;
+    ctx->time_base = AVRational{1, 25};
+    // Full-range 4:2:0 is the JPEG layout of the decoded picture; only the range flag differs.
+    ctx->pix_fmt = AV_PIX_FMT_YUVJ420P;
+    ctx->color_range = AVCOL_RANGE_JPEG;
+    ctx->flags =
+        static_cast<int>(static_cast<unsigned>(ctx->flags) |
+                         static_cast<unsigned>(AV_CODEC_FLAG_QSCALE)); // FFmpeg flags are int
+    ctx->global_quality = FF_QP2LAMBDA * 3; // high quality, ~100-200 KB at 960x720
+    if (avcodec_open2(ctx.get(), mjpeg, nullptr) < 0)
+    {
+        throw std::runtime_error("photo: cannot open the JPEG encoder");
+    }
+    frame->format = AV_PIX_FMT_YUVJ420P;
+    frame->pts = 0;
+    std::unique_ptr<AVPacket, PacketDeleter> packet(av_packet_alloc());
+    if (!packet || avcodec_send_frame(ctx.get(), frame.get()) < 0 ||
+        avcodec_send_frame(ctx.get(), nullptr) < 0 ||
+        avcodec_receive_packet(ctx.get(), packet.get()) < 0)
+    {
+        throw std::runtime_error("photo: JPEG encoding failed");
+    }
+    std::filesystem::create_directories(path.parent_path());
+    std::ofstream file(path, std::ios::binary);
+    file.write(reinterpret_cast<const char*>(packet->data), packet->size);
+    if (!file)
+    {
+        throw std::runtime_error("photo: cannot write " + path.string());
+    }
+}
+
+std::filesystem::path default_photo_path(const std::filesystem::path& dir)
+{
+    std::filesystem::create_directories(dir);
+    const auto now = std::chrono::system_clock::now();
+    const std::time_t secs = std::chrono::system_clock::to_time_t(now);
+    const auto ms =
+        std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count() %
+        1000;
+    std::tm local{};
+    localtime_r(&secs, &local);
+    std::array<char, 64> name{};
+    const std::size_t n =
+        std::strftime(name.data(), name.size(), "tello_%Y-%m-%d_%H-%M-%S", &local);
+    std::array<char, 16> suffix{};
+    std::snprintf(suffix.data(), suffix.size(), "_%03d.jpg", static_cast<int>(ms));
+    return dir / (std::string(name.data(), n) + suffix.data());
 }
 
 std::filesystem::path default_recording_path(const std::filesystem::path& dir)

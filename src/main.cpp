@@ -169,11 +169,11 @@ bool parse_options(int argc, char** argv, Options& opt)
     return true;
 }
 
-// Recordings: ~/Videos/tello (created on the first "video start").
-std::filesystem::path videos_dir()
+// Recordings and photos: ~/Videos/tello, ~/Pictures/tello (created on first use).
+std::filesystem::path home_subdir(const char* first, const char* second)
 {
     const char* home = std::getenv("HOME");
-    return std::filesystem::path(home ? home : ".") / "Videos" / "tello";
+    return std::filesystem::path(home ? home : ".") / first / second;
 }
 
 std::string history_path()
@@ -343,13 +343,15 @@ int main(int argc, char** argv)
             telemetry = std::make_unique<tello::StateListener>("0.0.0.0", opt.state_port);
         }
         install_sigint();
-        cli::CommandProcessor processor(
-            *drone, std::cout, {opt.drone.host, opt.drone.port, opt.state_port, videos_dir()},
-            telemetry.get(), interruptible_sleep,
-            []
-            {
-                return g_interrupted.load();
-            });
+        cli::CommandProcessor processor(*drone, std::cout,
+                                        {opt.drone.host, opt.drone.port, opt.state_port,
+                                         home_subdir("Videos", "tello"),
+                                         home_subdir("Pictures", "tello")},
+                                        telemetry.get(), interruptible_sleep,
+                                        []
+                                        {
+                                            return g_interrupted.load();
+                                        });
 
         std::cout << "tello " << tello::version() << " — " << drone->model() << " at "
                   << opt.drone.host << ':' << opt.drone.port << ". 'help' lists commands.\n";

@@ -28,7 +28,7 @@ public:
     bool interrupted = false;
     cli::CommandProcessor cli{drone,
                               out,
-                              {"127.0.0.1", 8889, 8890, {}},
+                              {"127.0.0.1", 8889, 8890, {}, {}},
                               nullptr,
                               [this](std::chrono::milliseconds d)
                               {
