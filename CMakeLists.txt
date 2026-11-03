@@ -32,7 +32,9 @@ add_library(tello STATIC
   src/version.cpp
   src/udp_socket.cpp
   src/udp_transport.cpp
-  src/drone.cpp
+  src/drone_base.cpp
+  src/tello_family.cpp
+  src/factory.cpp
   src/state.cpp
   src/state_listener.cpp
 )
@@ -73,7 +75,8 @@ if(TELLO_BUILD_TESTS)
 
   add_executable(tello_tests
     tests/test_version.cpp
-    tests/test_drone.cpp
+    tests/test_tello_family.cpp
+    tests/test_drone_base.cpp
     tests/test_udp_transport.cpp
     tests/test_state.cpp
     tests/test_simulator.cpp

@@ -103,10 +103,14 @@ If `/usr/src/googletest` is missing, CMake downloads GoogleTest v1.14.0.
 ## 🧱 ARCHITECTURE
 
 ```
-include/tello/        public headers
+include/drone/        layer 1, vendor-neutral (the control layer knows only this)
+  drone_base.hpp      DroneBase — every command a stub throwing NotSupported; capabilities()
+  factory.hpp         make_drone(settings) — the only place that knows concrete models
+include/tello/        layer 2 (family) and layer 3 (models)
+  tello_family.hpp    TelloFamily — Tello protocol, SDK 1.3 set, range validation, TelloError;
+                      TelloClassic (owner's drone, SDK 1.3), TelloEdu (SDK 2.0: stop, sdk?, sn?)
   transport.hpp       ITransport — send a command, wait for the reply (one seam for mocks)
   udp_transport.hpp   UdpTransport — real UDP socket (POSIX)
-  drone.hpp           Drone — Tello SDK commands with range validation, throws TelloError
   state.hpp           DroneState + parse_state() for the telemetry string
   state_listener.hpp  StateListener — background UDP receiver of telemetry
 src/                  library implementation + CLI main
@@ -119,7 +123,9 @@ Rules:
 - **C++20**, warnings are errors (`-Wall -Wextra -Wpedantic -Werror`).
 - RAII for every resource (sockets, threads); no raw `new`/`delete`; no `using namespace std`.
 - Errors: `tello::TelloError` (exception) from the library; the CLI catches and prints.
-- Every new SDK command: validation in `Drone`, unit test with `MockTransport`, reply in `tello-sim`.
+- Every new SDK command: virtual stub in `DroneBase` + `Capability`, implementation in the family
+  (all models) or the model (one firmware), unit test with `MockTransport`, reply in `tello-sim`.
+- CLI, missions, keepalive use `DroneBase` only — never a concrete family or model.
 - Tests bind only to `127.0.0.1` with port `0` (ephemeral) — never fixed ports, never the real drone.
 - Library code does not print; output belongs to the CLI.
 

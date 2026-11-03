@@ -1,7 +1,7 @@
 // Simulator logic without sockets, then the real UDP stack against tello-sim on 127.0.0.1.
 
 #include "simulator.hpp"
-#include "tello/drone.hpp"
+#include "tello/tello_family.hpp"
 #include "tello/errors.hpp"
 #include "tello/state_listener.hpp"
 #include "tello/udp_transport.hpp"
@@ -9,6 +9,7 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <memory>
 #include <thread>
 
 namespace tello::sim {
@@ -136,7 +137,7 @@ protected:
     SimulatorUdpTest()
         : listener("127.0.0.1", 0),
           sim(make_config(listener.local_port())),
-          transport("127.0.0.1", sim.command_port()),
+          transport(std::make_shared<UdpTransport>("127.0.0.1", sim.command_port())),
           drone(transport, DroneTimeouts{milliseconds(1000), milliseconds(500)}) {}
 
     static SimConfig make_config(std::uint16_t state_port) {
@@ -149,8 +150,8 @@ protected:
 
     StateListener listener;
     Simulator sim;
-    UdpTransport transport;
-    Drone drone;
+    std::shared_ptr<UdpTransport> transport;
+    TelloEdu drone;
 };
 
 TEST_F(SimulatorUdpTest, FlyOverUdp) {
@@ -159,7 +160,7 @@ TEST_F(SimulatorUdpTest, FlyOverUdp) {
     drone.move(Direction::Up, 100);
     EXPECT_EQ(drone.height_cm(), 180);
     EXPECT_EQ(drone.battery(), 100);
-    EXPECT_EQ(transport.request("takeoff", milliseconds(500)), "error Already flying");
+    EXPECT_EQ(transport->request("takeoff", milliseconds(500)), "error Already flying");
     EXPECT_THROW(drone.takeoff(), TelloError);
     drone.land();
     EXPECT_FALSE(sim.model().flying);
@@ -194,7 +195,7 @@ TEST_F(SimulatorUdpTest, QueriesOverUdp) {
 TEST_F(SimulatorUdpTest, OutOfRangeFromSimulatorIsAnError) {
     drone.connect();
     drone.takeoff();
-    EXPECT_EQ(transport.request("forward 600", milliseconds(500)), "out of range");
+    EXPECT_EQ(transport->request("forward 600", milliseconds(500)), "out of range");
 }
 
 TEST_F(SimulatorUdpTest, TelemetryArrives) {

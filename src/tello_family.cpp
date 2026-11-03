@@ -1,10 +1,11 @@
-#include "tello/drone.hpp"
+#include "tello/tello_family.hpp"
 
 #include "tello/errors.hpp"
 
 #include <cctype>
 #include <charconv>
 #include <cstdlib>
+#include <utility>
 
 namespace tello {
 namespace {
@@ -40,40 +41,52 @@ char to_sdk(FlipDirection d) {
     return '?';
 }
 
-Drone::Drone(ITransport& transport, DroneTimeouts timeouts)
-    : transport_(transport), timeouts_(timeouts) {}
+TelloFamily::TelloFamily(std::shared_ptr<ITransport> transport, DroneTimeouts timeouts)
+    : transport_(std::move(transport)), timeouts_(timeouts) {
+    if (!transport_) {
+        throw TelloError("Tello: no transport");
+    }
+}
 
-void Drone::connect() { expect_ok("command"); }
-void Drone::takeoff() { expect_ok("takeoff"); }
-void Drone::land() { expect_ok("land"); }
-void Drone::stop() { expect_ok("stop"); }
-void Drone::emergency() { expect_ok("emergency"); }
+std::set<Capability> TelloFamily::capabilities() const {
+    return {Capability::Takeoff,   Capability::Land,        Capability::Emergency,
+            Capability::Move,      Capability::Rotate,      Capability::Flip,
+            Capability::SetSpeed,  Capability::GoTo,        Capability::Rc,
+            Capability::Battery,   Capability::Height,      Capability::Temperature,
+            Capability::FlightTime, Capability::Wifi,       Capability::Speed,
+            Capability::Attitude,  Capability::Barometer,   Capability::Tof};
+}
 
-void Drone::move(Direction direction, int cm) {
+void TelloFamily::connect() { expect_ok("command"); }
+void TelloFamily::takeoff() { expect_ok("takeoff"); }
+void TelloFamily::land() { expect_ok("land"); }
+void TelloFamily::emergency() { expect_ok("emergency"); }
+
+void TelloFamily::move(Direction direction, int cm) {
     check_range(to_sdk(direction), cm, kMinMoveCm, kMaxMoveCm);
     expect_ok(std::string(to_sdk(direction)) + " " + std::to_string(cm));
 }
 
-void Drone::rotate_cw(int degrees) {
+void TelloFamily::rotate_cw(int degrees) {
     check_range("cw", degrees, kMinRotateDeg, kMaxRotateDeg);
     expect_ok("cw " + std::to_string(degrees));
 }
 
-void Drone::rotate_ccw(int degrees) {
+void TelloFamily::rotate_ccw(int degrees) {
     check_range("ccw", degrees, kMinRotateDeg, kMaxRotateDeg);
     expect_ok("ccw " + std::to_string(degrees));
 }
 
-void Drone::flip(FlipDirection direction) {
+void TelloFamily::flip(FlipDirection direction) {
     expect_ok(std::string("flip ") + to_sdk(direction));
 }
 
-void Drone::set_speed(int cm_per_s) {
+void TelloFamily::set_speed(int cm_per_s) {
     check_range("speed", cm_per_s, kMinSpeed, kMaxSpeed);
     expect_ok("speed " + std::to_string(cm_per_s));
 }
 
-void Drone::go(int x, int y, int z, int speed) {
+void TelloFamily::go(int x, int y, int z, int speed) {
     check_range("go x", x, -kMaxGoCm, kMaxGoCm);
     check_range("go y", y, -kMaxGoCm, kMaxGoCm);
     check_range("go z", z, -kMaxGoCm, kMaxGoCm);
@@ -85,36 +98,34 @@ void Drone::go(int x, int y, int z, int speed) {
               " " + std::to_string(speed));
 }
 
-void Drone::rc(int left_right, int forward_back, int up_down, int yaw) {
+void TelloFamily::rc(int left_right, int forward_back, int up_down, int yaw) {
     check_range("rc a", left_right, -kMaxRc, kMaxRc);
     check_range("rc b", forward_back, -kMaxRc, kMaxRc);
     check_range("rc c", up_down, -kMaxRc, kMaxRc);
     check_range("rc d", yaw, -kMaxRc, kMaxRc);
-    transport_.send("rc " + std::to_string(left_right) + " " + std::to_string(forward_back) + " " +
+    transport_->send("rc " + std::to_string(left_right) + " " + std::to_string(forward_back) + " " +
                     std::to_string(up_down) + " " + std::to_string(yaw));
 }
 
-int Drone::battery() { return query_int("battery?"); }
-int Drone::height_cm() { return query_int("height?") * 10; }
-int Drone::wifi_snr() { return query_int("wifi?"); }
-std::string Drone::temperature() { return query("temp?"); }
-std::string Drone::flight_time() { return query("time?"); }
-std::string Drone::sdk_version() { return query("sdk?"); }
-std::string Drone::serial_number() { return query("sn?"); }
-int Drone::speed() { return query_int("speed?"); }
-std::string Drone::attitude() { return query("attitude?"); }
-std::string Drone::barometer() { return query("baro?"); }
-std::string Drone::tof_distance() { return query("tof?"); }
+int TelloFamily::battery() { return query_int("battery?"); }
+int TelloFamily::height_cm() { return query_int("height?") * 10; }
+int TelloFamily::wifi_snr() { return query_int("wifi?"); }
+std::string TelloFamily::temperature() { return query("temp?"); }
+std::string TelloFamily::flight_time() { return query("time?"); }
+int TelloFamily::speed() { return query_int("speed?"); }
+std::string TelloFamily::attitude() { return query("attitude?"); }
+std::string TelloFamily::barometer() { return query("baro?"); }
+std::string TelloFamily::tof_distance() { return query("tof?"); }
 
-void Drone::expect_ok(const std::string& command) {
-    const std::string reply = transport_.request(command, timeouts_.action);
+void TelloFamily::expect_ok(const std::string& command) {
+    const std::string reply = transport_->request(command, timeouts_.action);
     if (reply != "ok") {
         throw TelloError(command + ": " + (reply.empty() ? std::string("empty reply") : reply));
     }
 }
 
-std::string Drone::query(std::string_view command) {
-    std::string reply = transport_.request(command, timeouts_.query);
+std::string TelloFamily::query(std::string_view command) {
+    std::string reply = transport_->request(command, timeouts_.query);
     if (reply.starts_with("error") || reply.starts_with("unknown")) {
         throw TelloError(std::string(command) + ": " + reply);
     }
@@ -122,7 +133,7 @@ std::string Drone::query(std::string_view command) {
 }
 
 // Replies may carry units or a fraction after the number ("10dm", "100.0"): read the leading integer.
-int Drone::query_int(std::string_view command) {
+int TelloFamily::query_int(std::string_view command) {
     const std::string reply = query(command);
     int value = 0;
     const char* end = reply.data() + reply.size();
@@ -132,5 +143,15 @@ int Drone::query_int(std::string_view command) {
     }
     return value;
 }
+
+std::set<Capability> TelloEdu::capabilities() const {
+    auto caps = TelloFamily::capabilities();
+    caps.insert({Capability::Hover, Capability::SdkVersion, Capability::SerialNumber});
+    return caps;
+}
+
+void TelloEdu::hover() { expect_ok("stop"); }
+std::string TelloEdu::sdk_version() { return query("sdk?"); }
+std::string TelloEdu::serial_number() { return query("sn?"); }
 
 }  // namespace tello

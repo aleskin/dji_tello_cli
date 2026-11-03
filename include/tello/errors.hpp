@@ -1,14 +1,13 @@
 #pragma once
 
-#include <stdexcept>
-#include <string>
+#include "drone/errors.hpp"
 
 namespace tello {
 
-// Any failure talking to the drone: timeout, "error ..." reply, invalid argument, socket error.
-class TelloError : public std::runtime_error {
+// Tello failure: timeout, "error ..." reply, invalid argument, socket error.
+class TelloError : public drone::DroneError {
 public:
-    using std::runtime_error::runtime_error;
+    using drone::DroneError::DroneError;
 };
 
 }  // namespace tello

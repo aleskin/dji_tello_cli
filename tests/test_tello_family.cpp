@@ -1,7 +1,9 @@
 #include "mock_transport.hpp"
-#include "tello/drone.hpp"
+#include "tello/tello_family.hpp"
 
 #include <gtest/gtest.h>
+
+#include <memory>
 
 namespace tello {
 namespace {
@@ -10,9 +12,10 @@ using test::MockTransport;
 
 class DroneTest : public ::testing::Test {
 protected:
-    MockTransport transport;
+    std::shared_ptr<MockTransport> mock = std::make_shared<MockTransport>();
+    MockTransport& transport = *mock;
     DroneTimeouts timeouts{std::chrono::milliseconds(500), std::chrono::milliseconds(100)};
-    Drone drone{transport, timeouts};
+    TelloEdu drone{mock, timeouts};
 };
 
 TEST_F(DroneTest, ConnectSendsCommand) {
@@ -138,8 +141,8 @@ TEST_F(DroneTest, RemainingQueriesUseSdkNames) {
     EXPECT_EQ(transport.requests, (std::vector<std::string>{"wifi?", "time?", "sn?"}));
 }
 
-TEST_F(DroneTest, StopAndEmergency) {
-    drone.stop();
+TEST_F(DroneTest, HoverIsStopAndEmergency) {
+    drone.hover();
     drone.emergency();
     EXPECT_EQ(transport.requests, (std::vector<std::string>{"stop", "emergency"}));
 }
