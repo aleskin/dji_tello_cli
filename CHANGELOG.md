@@ -5,6 +5,23 @@ Format: `## [version] — YYYY-MM-DD` followed by grouped changes. Written by `m
 
 ---
 
+## [0.0.4] — 2026-11-03
+
+### Fixed
+- **[TEL-00032]** cli: keep simulator alive on Ctrl+C under make run-sim
+
+### Added
+- **[TEL-00020]** core: add position sources, dead reckoning and return home
+- **[TEL-00019]** cli: add aliases with parameters and config file
+- **[TEL-00017]** cli: add keyboard mode flying with rc from the video window
+- **[TEL-00016]** video: add SDL2 live camera window with OSD via video show
+- **[TEL-00015]** video: save the current camera picture as JPEG with photo
+- **[TEL-00014]** video: receive H.264 stream and record MP4 via video command
+- **[TEL-00024]** sim: stream H.264 test picture to UDP 11111 after streamon
+- **[TEL-00031]** build: clear clang-tidy findings, silence style-only checks
+
+---
+
 ## [0.0.3] — 2026-11-03
 
 ### Fixed
