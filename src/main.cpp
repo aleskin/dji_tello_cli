@@ -11,6 +11,11 @@
 #include <replxx.hxx>
 #include <unistd.h>
 
+#include <atomic>
+#include <chrono>
+#include <csignal>
+#include <thread>
+
 #include <cerrno>
 #include <cstdlib>
 #include <exception>
@@ -23,6 +28,37 @@
 #include <string_view>
 
 namespace {
+
+// Set by SIGINT while a command runs (outside the prompt Ctrl+C is a signal, not a key).
+std::atomic<bool> g_interrupted{false};
+static_assert(std::atomic<bool>::is_always_lock_free);
+
+extern "C" void on_sigint(int) { g_interrupted.store(true); }
+
+void install_sigint() {
+    struct sigaction sa {};
+    sa.sa_handler = on_sigint;
+    sigemptyset(&sa.sa_mask);
+    sigaction(SIGINT, &sa, nullptr);
+}
+
+// 'wait' that Ctrl+C cuts short.
+void interruptible_sleep(std::chrono::milliseconds d) {
+    const auto until = std::chrono::steady_clock::now() + d;
+    while (!g_interrupted.load() && std::chrono::steady_clock::now() < until) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+}
+
+// One input line; Ctrl+C during it skips the rest of the chain, then lands if in the air.
+bool run_line(cli::CommandProcessor& processor, const std::string& line) {
+    g_interrupted.store(false);
+    const bool go_on = processor.execute_line(line);
+    if (g_interrupted.exchange(false)) {
+        processor.on_interrupt();
+    }
+    return go_on;
+}
 
 struct Options {
     drone::ConnectionSettings drone;
@@ -127,7 +163,7 @@ int run(drone::DroneBase& drone, cli::CommandProcessor& processor,
         });
         std::string line;
         while (std::getline(std::cin, line)) {
-            if (!processor.execute_line(line)) {
+            if (!run_line(processor, line)) {
                 break;
             }
         }
@@ -153,7 +189,8 @@ int run(drone::DroneBase& drone, cli::CommandProcessor& processor,
         const char* input = rx.input("tello> ");
         if (input == nullptr) {
             if (errno == EAGAIN) {
-                continue;  // Ctrl+C on an empty line: new prompt
+                processor.on_interrupt();  // Ctrl+C at the prompt: land if in the air
+                continue;
             }
             break;  // Ctrl+D
         }
@@ -162,7 +199,7 @@ int run(drone::DroneBase& drone, cli::CommandProcessor& processor,
             continue;
         }
         rx.history_add(line);
-        if (!processor.execute_line(line)) {
+        if (!run_line(processor, line)) {
             break;
         }
     }
@@ -185,9 +222,11 @@ int main(int argc, char** argv) {
         if (opt.state_port != 0) {
             telemetry = std::make_unique<tello::StateListener>("0.0.0.0", opt.state_port);
         }
+        install_sigint();
         cli::CommandProcessor processor(*drone, std::cout,
                                         {opt.drone.host, opt.drone.port, opt.state_port},
-                                        telemetry.get());
+                                        telemetry.get(), interruptible_sleep,
+                                        [] { return g_interrupted.load(); });
 
         std::cout << "tello " << tello::version() << " — " << drone->model() << " at "
                   << opt.drone.host << ':' << opt.drone.port << ". 'help' lists commands.\n";

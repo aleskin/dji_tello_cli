@@ -22,8 +22,10 @@ public:
     Model drone{mock};
     std::ostringstream out;
     std::chrono::milliseconds slept{0};
+    bool interrupted = false;
     cli::CommandProcessor cli{drone, out, {"127.0.0.1", 8889, 8890}, nullptr,
-                              [this](std::chrono::milliseconds d) { slept += d; }};
+                              [this](std::chrono::milliseconds d) { slept += d; },
+                              [this] { return interrupted; }};
 };
 
 class ClassicCli : public ::testing::Test, public Fixture<tello::TelloClassic> {};
@@ -121,6 +123,56 @@ TEST_F(ClassicCli, InfoSurvivesTimeouts) {
 TEST_F(ClassicCli, StateWithoutTelemetry) {
     cli.execute_line("state");
     EXPECT_EQ(out.str(), "no telemetry received yet\n");
+}
+
+TEST_F(ClassicCli, EmergencyWithoutConfirmation) {
+    cli.execute_line("takeoff; emergency");
+    EXPECT_EQ(mock->requests, (std::vector<std::string>{"takeoff", "emergency"}));
+    EXPECT_FALSE(cli.airborne());
+}
+
+TEST_F(ClassicCli, HoverNeedsSdk2) {
+    cli.execute_line("hover");
+    EXPECT_NE(out.str().find("'hover' is not supported by Tello (SDK 1.3)"), std::string::npos);
+    EXPECT_TRUE(mock->requests.empty());
+}
+
+TEST_F(EduCli, HoverAndStopSendStop) {
+    cli.execute_line("hover; stop");
+    EXPECT_EQ(mock->requests, (std::vector<std::string>{"stop", "stop"}));
+}
+
+TEST_F(ClassicCli, AirborneFollowsTakeoffAndLand) {
+    EXPECT_FALSE(cli.airborne());
+    mock->reply("error Battery low");
+    cli.execute_line("takeoff");
+    EXPECT_FALSE(cli.airborne());  // failed takeoff
+    cli.execute_line("takeoff");
+    EXPECT_TRUE(cli.airborne());
+    cli.execute_line("land");
+    EXPECT_FALSE(cli.airborne());
+}
+
+TEST_F(ClassicCli, InterruptOnGroundDoesNothing) {
+    cli.on_interrupt();
+    EXPECT_TRUE(mock->requests.empty());
+    EXPECT_EQ(out.str(), "");
+}
+
+TEST_F(ClassicCli, InterruptInFlightLands) {
+    cli.execute_line("takeoff");
+    cli.on_interrupt();
+    EXPECT_EQ(mock->requests, (std::vector<std::string>{"takeoff", "land"}));
+    EXPECT_FALSE(cli.airborne());
+    EXPECT_NE(out.str().find("Ctrl+C in flight: landing"), std::string::npos);
+}
+
+TEST_F(ClassicCli, InterruptSkipsRestOfChain) {
+    cli.execute_line("takeoff");
+    interrupted = true;
+    EXPECT_TRUE(cli.execute_line("forward 100; forward 100"));
+    EXPECT_EQ(mock->requests, (std::vector<std::string>{"takeoff"}));
+    EXPECT_NE(out.str().find("interrupted"), std::string::npos);
 }
 
 }  // namespace

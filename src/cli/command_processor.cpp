@@ -76,13 +76,15 @@ std::string_view to_string(Category c) {
 }
 
 CommandProcessor::CommandProcessor(drone::DroneBase& drone, std::ostream& out, SessionInfo session,
-                                   const tello::StateListener* telemetry, Sleep sleep)
+                                   const tello::StateListener* telemetry, Sleep sleep,
+                                   Interrupted interrupted)
     : drone_(drone),
       out_(out),
       session_(std::move(session)),
       telemetry_(telemetry),
       sleep_(sleep ? std::move(sleep)
-                   : Sleep([](std::chrono::milliseconds d) { std::this_thread::sleep_for(d); })) {
+                   : Sleep([](std::chrono::milliseconds d) { std::this_thread::sleep_for(d); })),
+      interrupted_(interrupted ? std::move(interrupted) : Interrupted([] { return false; })) {
     register_commands();
 }
 
@@ -120,9 +122,27 @@ void CommandProcessor::register_commands() {
         [this](const Args&) { drone_.connect(); out_ << "ok\n"; });
     add({"takeoff", {}, C::Flight, "takeoff", "take off and hover (~80 cm); then 'up <cm>'",
          Capability::Takeoff},
-        [this](const Args&) { drone_.takeoff(); out_ << "ok\n"; });
-    add({"land", {}, C::Flight, "land", "land", Capability::Land},
-        [this](const Args&) { drone_.land(); out_ << "ok\n"; });
+        [this](const Args&) {
+            drone_.takeoff();
+            airborne_ = true;
+            out_ << "ok\n";
+        });
+    add({"land", {}, C::Flight, "land", "land", Capability::Land}, [this](const Args&) {
+        drone_.land();
+        airborne_ = false;
+        out_ << "ok\n";
+    });
+    add({"hover", {"stop"}, C::Flight, "hover", "stop moving and hold position",
+         Capability::Hover},
+        [this](const Args&) { drone_.hover(); out_ << "ok\n"; });
+    // The panic button: no confirmation, by design.
+    add({"emergency", {}, C::Flight, "emergency", "MOTORS OFF NOW: the drone falls",
+         Capability::Emergency},
+        [this](const Args&) {
+            drone_.emergency();
+            airborne_ = false;
+            out_ << "ok\n";
+        });
 
     // Movement.
     const std::pair<const char*, Direction> moves[] = {
@@ -223,11 +243,23 @@ bool CommandProcessor::execute_line(std::string_view line) {
         if (command.empty()) {
             continue;
         }
+        if (interrupted_()) {
+            out_ << "interrupted: rest of the line skipped\n";
+            break;
+        }
         if (!execute(command) || exit_requested_) {
             break;
         }
     }
     return !exit_requested_;
+}
+
+void CommandProcessor::on_interrupt() {
+    if (!airborne_) {
+        return;
+    }
+    out_ << "Ctrl+C in flight: landing (type 'exit' to quit once landed)\n";
+    execute("land");
 }
 
 bool CommandProcessor::execute(std::string_view command) {

@@ -19,7 +19,7 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 |---|---|---|---|
 | TEL-00005 | cli: REPL на C++ (паритет с Rust) | ✅ Выполнена | 8 |
 | TEL-00006 | core: keepalive и автопосадка при низком заряде | ✅ Выполнена | 3 |
-| TEL-00007 | cli: команды безопасности emergency / stop | 📂 Открыта | 2 |
+| TEL-00007 | cli: команды безопасности emergency / stop | ✅ Выполнена | 2 |
 | TEL-00008 | cli: миссии из файла | 📂 Открыта | 3 |
 | TEL-00010 | build: make sanity-check (clang-tidy, cppcheck) | 📂 Открыта | 3 |
 | TEL-00011 | build: удалить legacy/rust, README под C++ | 📂 Открыта | 2 |
@@ -86,7 +86,7 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 - **Блокирована:** TEL-00028
 
 ### [TEL-00007] cli: команды безопасности emergency / stop
-- **Status:** Открыта
+- **Status:** ✅ Выполнена
 - **Complexity:** 2
 - **Description:** `emergency` (выключить моторы, без подтверждения — это аварийная кнопка),
   `hover` → `stop`. Горячая клавиша Ctrl+C в полёте → `land`, не выход из программы.

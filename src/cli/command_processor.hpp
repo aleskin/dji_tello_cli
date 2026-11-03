@@ -35,12 +35,21 @@ struct SessionInfo {
 class CommandProcessor {
 public:
     using Sleep = std::function<void(std::chrono::milliseconds)>;
+    using Interrupted = std::function<bool()>;  // true once the user pressed Ctrl+C
 
     CommandProcessor(drone::DroneBase& drone, std::ostream& out, SessionInfo session,
-                     const tello::StateListener* telemetry = nullptr, Sleep sleep = {});
+                     const tello::StateListener* telemetry = nullptr, Sleep sleep = {},
+                     Interrupted interrupted = {});
 
-    // Runs "cmd; cmd; ..." in order, stops at the first failure. False once "exit" ran.
+    // Runs "cmd; cmd; ..." in order, stops at the first failure or on Ctrl+C.
+    // False once "exit" ran.
     bool execute_line(std::string_view line);
+
+    // Ctrl+C policy: in the air it lands (never quits with a flying drone), on the ground nothing.
+    void on_interrupt();
+
+    // After a successful takeoff until a successful land/emergency.
+    [[nodiscard]] bool airborne() const { return airborne_; }
 
     // Command names (with aliases) this model supports and that start with prefix.
     [[nodiscard]] std::vector<std::string> completions(std::string_view prefix) const;
@@ -70,9 +79,11 @@ private:
     SessionInfo session_;
     const tello::StateListener* telemetry_;
     Sleep sleep_;
+    Interrupted interrupted_;
     std::vector<Entry> entries_;
     std::vector<CommandInfo> commands_;
     bool exit_requested_ = false;
+    bool airborne_ = false;
 };
 
 [[nodiscard]] std::string_view to_string(Category c);
