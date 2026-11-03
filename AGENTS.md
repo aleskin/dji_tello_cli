@@ -92,6 +92,7 @@ make build        # cmake configure + build (build/)
 make test         # unit + simulator integration tests (ctest)
 make sim          # run the fake drone on 127.0.0.1:8889
 make run-sim      # run the CLI against the simulator
+make format       # clang-format all C++ code (Allman, 4 spaces)
 make clean
 ```
 
@@ -117,6 +118,13 @@ src/                  library implementation + CLI main
 sim/                  tello-sim: fake drone (library + executable), used by tests and by hand
 tests/                GoogleTest: MockTransport unit tests + simulator integration tests
 ```
+
+## 🎨 CODE STYLE (owner's choice)
+
+- **Allman braces**: every `{` and `}` on its own line — functions, classes, namespaces,
+  `if`/`for`/`while`/`switch`, lambdas, enums. No one-line bodies, braces even for a single statement.
+- **Indent 4 spaces**, never tabs (C++, CMake, Python, shell; `Makefile` recipes need tabs).
+- `.clang-format` in the root is the rule; run `make format` before every commit.
 
 Rules:
 - **C++20**, warnings are errors (`-Wall -Wextra -Wpedantic -Werror`).

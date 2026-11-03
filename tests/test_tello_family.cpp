@@ -5,12 +5,15 @@
 
 #include <memory>
 
-namespace tello {
-namespace {
+namespace tello
+{
+namespace
+{
 
 using test::MockTransport;
 
-class DroneTest : public ::testing::Test {
+class DroneTest : public ::testing::Test
+{
 protected:
     std::shared_ptr<MockTransport> mock = std::make_shared<MockTransport>();
     MockTransport& transport = *mock;
@@ -18,49 +21,58 @@ protected:
     TelloEdu drone{mock, timeouts};
 };
 
-TEST_F(DroneTest, ConnectSendsCommand) {
+TEST_F(DroneTest, ConnectSendsCommand)
+{
     drone.connect();
     ASSERT_EQ(transport.requests.size(), 1u);
     EXPECT_EQ(transport.requests[0], "command");
 }
 
-TEST_F(DroneTest, TakeoffAndLand) {
+TEST_F(DroneTest, TakeoffAndLand)
+{
     drone.takeoff();
     drone.land();
     EXPECT_EQ(transport.requests, (std::vector<std::string>{"takeoff", "land"}));
     EXPECT_EQ(transport.last_timeout, timeouts.action);
 }
 
-TEST_F(DroneTest, ErrorReplyThrowsWithDroneText) {
+TEST_F(DroneTest, ErrorReplyThrowsWithDroneText)
+{
     transport.reply("error Not joystick");
-    try {
+    try
+    {
         drone.takeoff();
         FAIL() << "expected TelloError";
-    } catch (const TelloError& e) {
+    }
+    catch (const TelloError& e)
+    {
         EXPECT_STREQ(e.what(), "takeoff: error Not joystick");
     }
 }
 
-TEST_F(DroneTest, TimeoutThrows) {
+TEST_F(DroneTest, TimeoutThrows)
+{
     transport.reply(std::nullopt);
     EXPECT_THROW(drone.land(), TelloError);
 }
 
-TEST_F(DroneTest, MoveFormatsCommand) {
+TEST_F(DroneTest, MoveFormatsCommand)
+{
     drone.move(Direction::Forward, 100);
     drone.move(Direction::Up, 20);
     drone.move(Direction::Back, 500);
-    EXPECT_EQ(transport.requests,
-              (std::vector<std::string>{"forward 100", "up 20", "back 500"}));
+    EXPECT_EQ(transport.requests, (std::vector<std::string>{"forward 100", "up 20", "back 500"}));
 }
 
-TEST_F(DroneTest, MoveOutOfRangeSendsNothing) {
+TEST_F(DroneTest, MoveOutOfRangeSendsNothing)
+{
     EXPECT_THROW(drone.move(Direction::Left, 19), TelloError);
     EXPECT_THROW(drone.move(Direction::Right, 501), TelloError);
     EXPECT_TRUE(transport.requests.empty());
 }
 
-TEST_F(DroneTest, Rotate) {
+TEST_F(DroneTest, Rotate)
+{
     drone.rotate_cw(90);
     drone.rotate_ccw(360);
     EXPECT_EQ(transport.requests, (std::vector<std::string>{"cw 90", "ccw 360"}));
@@ -69,7 +81,8 @@ TEST_F(DroneTest, Rotate) {
     EXPECT_EQ(transport.requests.size(), 2u);
 }
 
-TEST_F(DroneTest, FlipAndSpeed) {
+TEST_F(DroneTest, FlipAndSpeed)
+{
     drone.flip(FlipDirection::Back);
     drone.set_speed(50);
     EXPECT_EQ(transport.requests, (std::vector<std::string>{"flip b", "speed 50"}));
@@ -77,23 +90,26 @@ TEST_F(DroneTest, FlipAndSpeed) {
     EXPECT_THROW(drone.set_speed(101), TelloError);
 }
 
-TEST_F(DroneTest, GoValidatesSpan) {
+TEST_F(DroneTest, GoValidatesSpan)
+{
     drone.go(100, -50, 0, 30);
     EXPECT_EQ(transport.requests.back(), "go 100 -50 0 30");
-    EXPECT_THROW(drone.go(10, -10, 19, 30), TelloError);   // all within -20..20
+    EXPECT_THROW(drone.go(10, -10, 19, 30), TelloError); // all within -20..20
     EXPECT_THROW(drone.go(501, 0, 0, 30), TelloError);
     EXPECT_THROW(drone.go(100, 0, 0, 5), TelloError);
     EXPECT_EQ(transport.requests.size(), 1u);
 }
 
-TEST_F(DroneTest, RcIsFireAndForget) {
+TEST_F(DroneTest, RcIsFireAndForget)
+{
     drone.rc(0, 50, -20, 100);
     EXPECT_TRUE(transport.requests.empty());
     EXPECT_EQ(transport.sent, (std::vector<std::string>{"rc 0 50 -20 100"}));
     EXPECT_THROW(drone.rc(101, 0, 0, 0), TelloError);
 }
 
-TEST_F(DroneTest, QueriesParseNumbersWithUnits) {
+TEST_F(DroneTest, QueriesParseNumbersWithUnits)
+{
     transport.reply("87");
     transport.reply("12dm");
     EXPECT_EQ(drone.battery(), 87);
@@ -101,7 +117,8 @@ TEST_F(DroneTest, QueriesParseNumbersWithUnits) {
     EXPECT_EQ(transport.last_timeout, timeouts.query);
 }
 
-TEST_F(DroneTest, QueryRejectsGarbageAndErrors) {
+TEST_F(DroneTest, QueryRejectsGarbageAndErrors)
+{
     transport.reply("abc");
     EXPECT_THROW((void)drone.battery(), TelloError);
     transport.reply("error");
@@ -110,7 +127,8 @@ TEST_F(DroneTest, QueryRejectsGarbageAndErrors) {
     EXPECT_THROW((void)drone.serial_number(), TelloError);
 }
 
-TEST_F(DroneTest, StringQueries) {
+TEST_F(DroneTest, StringQueries)
+{
     transport.reply("63~65C");
     transport.reply("20");
     EXPECT_EQ(drone.temperature(), "63~65C");
@@ -118,7 +136,8 @@ TEST_F(DroneTest, StringQueries) {
     EXPECT_EQ(transport.requests, (std::vector<std::string>{"temp?", "sdk?"}));
 }
 
-TEST_F(DroneTest, SensorQueries) {
+TEST_F(DroneTest, SensorQueries)
+{
     transport.reply("100.0");
     transport.reply("pitch:1;roll:-2;yaw:30;");
     transport.reply("0.25");
@@ -131,7 +150,8 @@ TEST_F(DroneTest, SensorQueries) {
               (std::vector<std::string>{"speed?", "attitude?", "baro?", "tof?"}));
 }
 
-TEST_F(DroneTest, RemainingQueriesUseSdkNames) {
+TEST_F(DroneTest, RemainingQueriesUseSdkNames)
+{
     transport.reply("90");
     transport.reply("15s");
     transport.reply("0TQZK1234");
@@ -141,11 +161,12 @@ TEST_F(DroneTest, RemainingQueriesUseSdkNames) {
     EXPECT_EQ(transport.requests, (std::vector<std::string>{"wifi?", "time?", "sn?"}));
 }
 
-TEST_F(DroneTest, HoverIsStopAndEmergency) {
+TEST_F(DroneTest, HoverIsStopAndEmergency)
+{
     drone.hover();
     drone.emergency();
     EXPECT_EQ(transport.requests, (std::vector<std::string>{"stop", "emergency"}));
 }
 
-}  // namespace
-}  // namespace tello
+} // namespace
+} // namespace tello

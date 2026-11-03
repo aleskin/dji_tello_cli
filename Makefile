@@ -5,7 +5,7 @@ BUILD_DIR ?= build
 JOBS      ?= $(shell nproc 2>/dev/null || echo 4)
 SIM_PORT  ?= 8889
 
-.PHONY: all build test sim run-sim clean bump-dry bump-version sanity-check
+.PHONY: all build test sim run-sim clean bump-dry bump-version sanity-check format
 
 all: build
 
@@ -41,3 +41,8 @@ bump-version:
 # Static analysis report (clang-tidy + cppcheck) → logs/sanity/last.txt.
 sanity-check: build
 	bash scripts/sanity_check.sh
+
+# Code style (.clang-format: Allman, 4 spaces). Override the binary with CLANG_FORMAT=...
+CLANG_FORMAT ?= clang-format
+format:
+	$(CLANG_FORMAT) -i $$(git ls-files '*.cpp' '*.hpp')

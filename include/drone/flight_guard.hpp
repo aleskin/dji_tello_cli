@@ -8,22 +8,25 @@
 #include <string>
 #include <thread>
 
-namespace drone {
+namespace drone
+{
 
-struct GuardSettings {
+struct GuardSettings
+{
     // Tello auto-lands after 15 s without commands: talk at least every keepalive_after.
     std::chrono::milliseconds keepalive_after{5'000};
     std::chrono::milliseconds check_period{200};
-    int warn_battery = 15;  // percent: warning once
-    int land_battery = 10;  // percent: land once
+    int warn_battery = 15; // percent: warning once
+    int land_battery = 10; // percent: land once
 };
 
 // Background safety for a connected drone, working through DroneBase only:
 // keepalive when the user is quiet, a warning and then a landing on low battery.
-class FlightGuard {
+class FlightGuard
+{
 public:
-    using BatterySource = std::function<std::optional<int>()>;  // nullopt = unknown right now
-    using Notify = std::function<void(const std::string&)>;     // called from the guard thread
+    using BatterySource = std::function<std::optional<int>()>; // nullopt = unknown right now
+    using Notify = std::function<void(const std::string&)>;    // called from the guard thread
 
     FlightGuard(DroneBase& drone, GuardSettings settings, BatterySource battery, Notify notify);
     ~FlightGuard();
@@ -45,7 +48,7 @@ private:
     bool keepalive_failing_ = false;
     bool warned_ = false;
     bool landed_ = false;
-    std::jthread thread_;  // last: started after everything it uses exists
+    std::jthread thread_; // last: started after everything it uses exists
 };
 
-}  // namespace drone
+} // namespace drone

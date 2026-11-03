@@ -5,7 +5,7 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 
 ---
 
-## ⚡ Next Task ID: TEL-00030
+## ⚡ Next Task ID: TEL-00031
 
 > Единственный счётчик задач. Берём это число как номер новой задачи и сразу инкрементируем.
 > Номер никогда не используется повторно.
@@ -27,10 +27,18 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 | TEL-00013 | Купить батарею и первый реальный полёт по чек-листу | ❗ Владелец | 2 |
 | TEL-00028 | core: иерархия дронов база → семейство → модель | ✅ Выполнена | 8 |
 | TEL-00029 | sim: модель дрона в симуляторе (tello / tello-edu) | ✅ Выполнена | 3 |
+| TEL-00030 | build: стиль кода Allman, отступ 4 пробела, clang-format | ✅ Выполнена | 2 |
 
 ## 📝 Детали задач
 
 ### 🔧 Build & Infrastructure
+
+### [TEL-00030] build: стиль кода Allman, отступ 4 пробела, clang-format
+- **Status:** ✅ Выполнена
+- **Complexity:** 2
+- **Description:** Стиль владельца: Allman — каждая фигурная скобка на своей строке (функции, классы,
+  `if`/`for`, лямбды, enum), отступ 4 пробела, без табов. Правило в `AGENTS.md`, `.clang-format`
+  в корне, `make format`; весь C++-код переформатировать, `CMakeLists.txt` — отступ 4.
 
 ### [TEL-00010] build: make sanity-check (clang-tidy, cppcheck)
 - **Status:** ✅ Выполнена

@@ -4,10 +4,12 @@
 #include <string>
 #include <string_view>
 
-namespace tello {
+namespace tello
+{
 
 // The single seam between the SDK command layer and the network: tests replace it with a mock.
-class ITransport {
+class ITransport
+{
 public:
     virtual ~ITransport() = default;
 
@@ -18,4 +20,4 @@ public:
     virtual void send(std::string_view command) = 0;
 };
 
-}  // namespace tello
+} // namespace tello

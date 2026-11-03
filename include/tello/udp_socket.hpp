@@ -6,16 +6,19 @@
 #include <string>
 #include <string_view>
 
-namespace tello {
+namespace tello
+{
 
-struct Datagram {
+struct Datagram
+{
     std::string data;
     std::string from_host;
     std::uint16_t from_port = 0;
 };
 
 // Owning IPv4 UDP socket. Port 0 binds an ephemeral port (see local_port()).
-class UdpSocket {
+class UdpSocket
+{
 public:
     explicit UdpSocket(const std::string& bind_host = "0.0.0.0", std::uint16_t bind_port = 0);
     ~UdpSocket();
@@ -36,4 +39,4 @@ private:
     int fd_ = -1;
 };
 
-}  // namespace tello
+} // namespace tello

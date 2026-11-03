@@ -12,31 +12,42 @@
 #include <string_view>
 #include <vector>
 
-namespace cli {
+namespace cli
+{
 
-enum class Category { System, Flight, Movement, Mission, Telemetry };
+enum class Category
+{
+    System,
+    Flight,
+    Movement,
+    Mission,
+    Telemetry
+};
 
-struct CommandInfo {
+struct CommandInfo
+{
     std::string name;
     std::vector<std::string> aliases;
     Category category;
-    std::string usage;  // "forward <cm>"
+    std::string usage; // "forward <cm>"
     std::string help;
-    std::optional<drone::Capability> needs;  // hidden from help when the model lacks it
+    std::optional<drone::Capability> needs; // hidden from help when the model lacks it
 };
 
 // Where the CLI talks to, shown by "info".
-struct SessionInfo {
+struct SessionInfo
+{
     std::string host;
     std::uint16_t command_port = 0;
-    std::uint16_t state_port = 0;  // 0 = telemetry off
+    std::uint16_t state_port = 0; // 0 = telemetry off
 };
 
 // Interactive command layer. Knows only DroneBase: which model sits behind it decides what works.
-class CommandProcessor {
+class CommandProcessor
+{
 public:
     using Sleep = std::function<void(std::chrono::milliseconds)>;
-    using Interrupted = std::function<bool()>;  // true once the user pressed Ctrl+C
+    using Interrupted = std::function<bool()>; // true once the user pressed Ctrl+C
 
     CommandProcessor(drone::DroneBase& drone, std::ostream& out, SessionInfo session,
                      const tello::StateListener* telemetry = nullptr, Sleep sleep = {},
@@ -54,21 +65,34 @@ public:
     void on_interrupt();
 
     // After a successful takeoff until a successful land/emergency.
-    [[nodiscard]] bool airborne() const { return airborne_; }
+    [[nodiscard]] bool airborne() const
+    {
+        return airborne_;
+    }
 
     // Command names (with aliases) this model supports and that start with prefix.
     [[nodiscard]] std::vector<std::string> completions(std::string_view prefix) const;
 
-    [[nodiscard]] const std::vector<CommandInfo>& commands() const { return commands_; }
+    [[nodiscard]] const std::vector<CommandInfo>& commands() const
+    {
+        return commands_;
+    }
 
 private:
     using Args = std::vector<std::string_view>;
-    struct Entry {
+    struct Entry
+    {
         CommandInfo info;
         std::function<void(const Args&)> run;
     };
 
-    enum class Outcome { Done, Failed, Interrupted, Exit };
+    enum class Outcome
+    {
+        Done,
+        Failed,
+        Interrupted,
+        Exit
+    };
     Outcome run_chain(std::string_view line);
 
     // True on success, false when the chain must stop.
@@ -97,4 +121,4 @@ private:
 
 [[nodiscard]] std::string_view to_string(Category c);
 
-}  // namespace cli
+} // namespace cli

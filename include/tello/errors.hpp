@@ -2,12 +2,14 @@
 
 #include "drone/errors.hpp"
 
-namespace tello {
+namespace tello
+{
 
 // Tello failure: timeout, "error ..." reply, invalid argument, socket error.
-class TelloError : public drone::DroneError {
+class TelloError : public drone::DroneError
+{
 public:
     using drone::DroneError::DroneError;
 };
 
-}  // namespace tello
+} // namespace tello

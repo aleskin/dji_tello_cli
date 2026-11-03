@@ -11,24 +11,31 @@
 #include <string>
 #include <thread>
 
-namespace tello {
+namespace tello
+{
 
-struct StateSnapshot {
+struct StateSnapshot
+{
     DroneState state;
     std::chrono::steady_clock::time_point received;
 };
 
 // Receives telemetry in a background thread and keeps the latest valid packet.
 // Port 0 binds an ephemeral port (tests), see local_port().
-class StateListener {
+class StateListener
+{
 public:
-    explicit StateListener(const std::string& bind_host = "0.0.0.0", std::uint16_t port = kStatePort);
+    explicit StateListener(const std::string& bind_host = "0.0.0.0",
+                           std::uint16_t port = kStatePort);
     ~StateListener();
 
     StateListener(const StateListener&) = delete;
     StateListener& operator=(const StateListener&) = delete;
 
-    [[nodiscard]] std::uint16_t local_port() const { return port_; }
+    [[nodiscard]] std::uint16_t local_port() const
+    {
+        return port_;
+    }
     [[nodiscard]] std::optional<StateSnapshot> latest() const;
 
 private:
@@ -38,7 +45,7 @@ private:
     std::uint16_t port_;
     mutable std::mutex mutex_;
     std::optional<StateSnapshot> latest_;
-    std::jthread thread_;  // last member: started after everything it uses exists
+    std::jthread thread_; // last member: started after everything it uses exists
 };
 
-}  // namespace tello
+} // namespace tello

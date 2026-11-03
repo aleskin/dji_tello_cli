@@ -1,7 +1,11 @@
 #include "tello/version.hpp"
 
-namespace tello {
+namespace tello
+{
 
-std::string_view version() noexcept { return TELLO_VERSION; }
+std::string_view version() noexcept
+{
+    return TELLO_VERSION;
+}
 
-}  // namespace tello
+} // namespace tello

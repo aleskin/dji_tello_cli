@@ -9,12 +9,14 @@
 #include <string_view>
 #include <vector>
 
-namespace drone {
+namespace drone
+{
 
-struct ConnectionSettings {
-    std::string model = "tello";        // see known_models()
-    std::string host;                   // empty = the model's default address
-    std::uint16_t port = 0;             // 0 = the model's default command port
+struct ConnectionSettings
+{
+    std::string model = "tello"; // see known_models()
+    std::string host;            // empty = the model's default address
+    std::uint16_t port = 0;      // 0 = the model's default command port
     std::chrono::milliseconds action_timeout{20'000};
     std::chrono::milliseconds query_timeout{3'000};
 };
@@ -26,4 +28,4 @@ struct ConnectionSettings {
 // Throws DroneError for an unknown model.
 [[nodiscard]] std::unique_ptr<DroneBase> make_drone(const ConnectionSettings& settings);
 
-}  // namespace drone
+} // namespace drone

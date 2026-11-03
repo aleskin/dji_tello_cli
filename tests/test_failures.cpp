@@ -14,14 +14,16 @@
 #include <memory>
 #include <sstream>
 
-namespace {
+namespace
+{
 
 using std::chrono::milliseconds;
 using tello::DroneTimeouts;
 using tello::TelloError;
 using tello::test::MockTransport;
 
-TEST(QueryRetryTest, LostReplyIsAskedAgain) {
+TEST(QueryRetryTest, LostReplyIsAskedAgain)
+{
     auto mock = std::make_shared<MockTransport>();
     tello::TelloClassic drone(mock);
     mock->reply(std::nullopt);
@@ -30,17 +32,20 @@ TEST(QueryRetryTest, LostReplyIsAskedAgain) {
     EXPECT_EQ(mock->requests, (std::vector<std::string>{"battery?", "battery?"}));
 }
 
-TEST(QueryRetryTest, GivesUpAfterRetries) {
+TEST(QueryRetryTest, GivesUpAfterRetries)
+{
     auto mock = std::make_shared<MockTransport>();
-    tello::TelloClassic drone(mock);  // default: 2 retries
-    for (int i = 0; i < 3; ++i) {
+    tello::TelloClassic drone(mock); // default: 2 retries
+    for (int i = 0; i < 3; ++i)
+    {
         mock->reply(std::nullopt);
     }
     EXPECT_THROW((void)drone.battery(), TelloError);
     EXPECT_EQ(mock->requests.size(), 3u);
 }
 
-TEST(QueryRetryTest, ErrorReplyIsNotRetried) {
+TEST(QueryRetryTest, ErrorReplyIsNotRetried)
+{
     auto mock = std::make_shared<MockTransport>();
     tello::TelloClassic drone(mock);
     mock->reply("error");
@@ -48,7 +53,8 @@ TEST(QueryRetryTest, ErrorReplyIsNotRetried) {
     EXPECT_EQ(mock->requests.size(), 1u);
 }
 
-TEST(QueryRetryTest, ActionsAreNeverResent) {
+TEST(QueryRetryTest, ActionsAreNeverResent)
+{
     auto mock = std::make_shared<MockTransport>();
     tello::TelloClassic drone(mock);
     mock->reply(std::nullopt);
@@ -56,7 +62,8 @@ TEST(QueryRetryTest, ActionsAreNeverResent) {
     EXPECT_EQ(mock->requests, (std::vector<std::string>{"forward 100"}));
 }
 
-TEST(SimFailCmdTest, FailingCommandDoesNothing) {
+TEST(SimFailCmdTest, FailingCommandDoesNothing)
+{
     tello::sim::SimConfig config;
     config.fail_commands = {"takeoff"};
     tello::sim::SimLogic logic(config);
@@ -67,10 +74,12 @@ TEST(SimFailCmdTest, FailingCommandDoesNothing) {
     EXPECT_EQ(logic.handle("battery?", now), "100");
 }
 
-class FaultySim : public ::testing::Test {
+class FaultySim : public ::testing::Test
+{
 protected:
-    void start(tello::sim::SimConfig config, DroneTimeouts timeouts = {milliseconds(300),
-                                                                       milliseconds(100), 2}) {
+    void start(tello::sim::SimConfig config,
+               DroneTimeouts timeouts = {milliseconds(300), milliseconds(100), 2})
+    {
         config.command_port = 0;
         config.state_port = 0;
         sim = std::make_unique<tello::sim::Simulator>(config);
@@ -83,41 +92,49 @@ protected:
     std::unique_ptr<tello::TelloClassic> drone;
 };
 
-TEST_F(FaultySim, AllRepliesLost) {
+TEST_F(FaultySim, AllRepliesLost)
+{
     tello::sim::SimConfig config;
     config.drop_percent = 100;
     start(config);
-    EXPECT_THROW(drone->connect(), TelloError);  // the drone did enter SDK mode, though
+    EXPECT_THROW(drone->connect(), TelloError); // the drone did enter SDK mode, though
     EXPECT_THROW((void)drone->battery(), TelloError);
-    EXPECT_EQ(sim->dropped_replies(), 4);  // connect once, battery? three times
+    EXPECT_EQ(sim->dropped_replies(), 4); // connect once, battery? three times
     EXPECT_THROW(drone->takeoff(), TelloError);
-    EXPECT_TRUE(sim->model().flying);  // why actions are never resent
+    EXPECT_TRUE(sim->model().flying); // why actions are never resent
 }
 
-TEST_F(FaultySim, RetriesRideOverRandomLoss) {
+TEST_F(FaultySim, RetriesRideOverRandomLoss)
+{
     tello::sim::SimConfig config;
     config.drop_percent = 50;
     config.seed = 7;
     start(config, {milliseconds(300), milliseconds(80), 8});
-    try {
+    try
+    {
         (void)transport->request("command", milliseconds(300));
-    } catch (const TelloError&) {
+    }
+    catch (const TelloError&)
+    {
         // the reply may be lost; the drone has entered SDK mode anyway
     }
-    for (int i = 0; i < 10; ++i) {
+    for (int i = 0; i < 10; ++i)
+    {
         EXPECT_EQ(drone->battery(), 100);
     }
     EXPECT_GT(sim->dropped_replies(), 0);
 }
 
-TEST_F(FaultySim, SlowReplyTimesOut) {
+TEST_F(FaultySim, SlowReplyTimesOut)
+{
     tello::sim::SimConfig config;
     config.reply_delay = milliseconds(250);
     start(config, {milliseconds(100), milliseconds(100), 0});
     EXPECT_THROW(drone->connect(), TelloError);
 }
 
-TEST_F(FaultySim, SlowReplyWithinTimeoutIsFine) {
+TEST_F(FaultySim, SlowReplyWithinTimeoutIsFine)
+{
     tello::sim::SimConfig config;
     config.reply_delay = milliseconds(50);
     start(config, {milliseconds(500), milliseconds(500), 0});
@@ -125,7 +142,8 @@ TEST_F(FaultySim, SlowReplyWithinTimeoutIsFine) {
     EXPECT_EQ(drone->battery(), 100);
 }
 
-TEST_F(FaultySim, CliStopsChainOnRefusedCommand) {
+TEST_F(FaultySim, CliStopsChainOnRefusedCommand)
+{
     tello::sim::SimConfig config;
     config.fail_commands = {"flip"};
     start(config);
@@ -133,11 +151,12 @@ TEST_F(FaultySim, CliStopsChainOnRefusedCommand) {
     cli::CommandProcessor cli(*drone, out, {"127.0.0.1", sim->command_port(), 0});
     cli.execute_line("connect; takeoff; flip l; land");
     EXPECT_NE(out.str().find("error: flip l: error"), std::string::npos);
-    EXPECT_TRUE(sim->model().flying);  // 'land' after the failure was not run
+    EXPECT_TRUE(sim->model().flying); // 'land' after the failure was not run
     EXPECT_TRUE(cli.airborne());
 }
 
-TEST_F(FaultySim, MissionLandsOnRefusedCommand) {
+TEST_F(FaultySim, MissionLandsOnRefusedCommand)
+{
     tello::sim::SimConfig config;
     config.fail_commands = {"flip"};
     start(config);
@@ -146,7 +165,7 @@ TEST_F(FaultySim, MissionLandsOnRefusedCommand) {
     std::istringstream plan("connect\ntakeoff\nflip b\nforward 100\n");
     EXPECT_FALSE(cli.run_mission(plan, "flips"));
     EXPECT_FALSE(sim->model().flying);
-    EXPECT_NEAR(sim->model().x_cm, 0.0, 1e-6);  // 'forward 100' never ran
+    EXPECT_NEAR(sim->model().x_cm, 0.0, 1e-6); // 'forward 100' never ran
 }
 
-}  // namespace
+} // namespace
