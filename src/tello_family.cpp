@@ -129,8 +129,18 @@ void TelloFamily::expect_ok(const std::string& command) {
 }
 
 std::string TelloFamily::query(std::string_view command) {
-    mark_activity();
-    std::string reply = transport_->request(command, timeouts_.query);
+    std::string reply;
+    for (int attempt = 0;; ++attempt) {
+        mark_activity();
+        try {
+            reply = transport_->request(command, timeouts_.query);
+            break;
+        } catch (const TelloError&) {
+            if (attempt >= timeouts_.query_retries) {
+                throw;
+            }
+        }
+    }
     if (reply.starts_with("error") || reply.starts_with("unknown")) {
         throw TelloError(std::string(command) + ": " + reply);
     }

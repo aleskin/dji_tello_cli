@@ -96,6 +96,7 @@ if(TELLO_BUILD_TESTS)
     tests/test_simulator.cpp
     tests/test_command_processor.cpp
     tests/test_flight_guard.cpp
+    tests/test_failures.cpp
   )
   target_include_directories(tello_tests PRIVATE tests)
   target_link_libraries(tello_tests PRIVATE tello_sim tello_cli_core GTest::gtest_main)

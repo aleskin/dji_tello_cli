@@ -97,6 +97,9 @@ std::optional<std::string> SimLogic::handle(std::string_view command, Clock::tim
     if (name == "command") {
         return kOk;
     }
+    if (config_.fail_commands.contains(std::string(name))) {
+        return std::string("error");  // what the real drone says when it refuses
+    }
     // SDK 2.0 additions: SDK 1.3 firmware does not know them.
     if (config_.model == SimModelKind::Tello && (name == "stop" || name == "sdk?" || name == "sn?")) {
         return "unknown command: " + std::string(command);
@@ -300,6 +303,7 @@ Simulator::Simulator(SimConfig config)
       state_out_(config_.host, 0),
       command_port_(commands_.local_port()),
       logic_(config_),
+      random_(config_.seed),
       command_thread_([this](const std::stop_token& stop) { serve_commands(stop); }),
       state_thread_([this](const std::stop_token& stop) { serve_state(stop); }) {}
 
@@ -330,6 +334,17 @@ void Simulator::serve_commands(const std::stop_token& stop) {
             }
             if (config_.on_command) {
                 config_.on_command(datagram->data, reply);
+            }
+            if (reply && config_.reply_delay.count() > 0) {
+                const auto until = Clock::now() + config_.reply_delay;
+                while (!stop.stop_requested() && Clock::now() < until) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+                }
+            }
+            if (reply && config_.drop_percent > 0 &&
+                std::uniform_int_distribution<int>(0, 99)(random_) < config_.drop_percent) {
+                ++dropped_;
+                reply.reset();
             }
             if (reply) {
                 commands_.send_to(*reply, datagram->from_host, datagram->from_port);

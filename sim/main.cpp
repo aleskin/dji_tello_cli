@@ -7,6 +7,7 @@
 
 #include <pthread.h>
 
+#include <chrono>
 #include <csignal>
 #include <cstdlib>
 #include <exception>
@@ -20,13 +21,16 @@ namespace {
 
 void usage() {
     std::cout << "usage: tello-sim [--port N] [--state-port N] [--battery PCT] [--drain PCT_PER_MIN]"
-                 " [--model M] [--quiet]\n"
+                 " [--model M] [--drop PCT] [--delay MS] [--fail-cmd NAME]... [--quiet]\n"
                  "  --port        command port on 127.0.0.1 (default 8889, 0 = ephemeral)\n"
                  "  --state-port  telemetry port on the client's host (default 8890, 0 = off)\n"
                  "  --battery     battery at start, percent (default 100)\n"
                  "  --drain       battery drain in the air, percent per minute (default 8;\n"
                  "                raise it to test low-battery handling quickly)\n"
                  "  --model       tello (SDK 1.3, default) or tello-edu (SDK 2.0)\n"
+                 "  --drop        lose this percent of replies (the command still runs)\n"
+                 "  --delay       wait this many ms before every reply\n"
+                 "  --fail-cmd    always answer 'error' to this command (repeatable), e.g. flip\n"
                  "  --quiet       do not print commands and replies\n";
 }
 
@@ -65,6 +69,19 @@ int main(int argc, char** argv) {
                                             "' (known: tello, tello-edu)");
                 }
                 config.model = *model;
+            } else if (arg == "--drop") {
+                std::string v = value();
+                if (!v.empty() && v.back() == '%') {
+                    v.pop_back();
+                }
+                config.drop_percent = std::stoi(v);
+                if (config.drop_percent < 0 || config.drop_percent > 100) {
+                    throw tello::TelloError("--drop: 0..100 %");
+                }
+            } else if (arg == "--delay") {
+                config.reply_delay = std::chrono::milliseconds(std::stoi(value()));
+            } else if (arg == "--fail-cmd") {
+                config.fail_commands.insert(value());
             } else if (arg == "--battery") {
                 config.battery = std::stod(value());
             } else if (arg == "--drain") {

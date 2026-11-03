@@ -23,7 +23,7 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 | TEL-00008 | cli: миссии из файла | ✅ Выполнена | 3 |
 | TEL-00010 | build: make sanity-check (clang-tidy, cppcheck) | 📂 Открыта | 3 |
 | TEL-00011 | build: удалить legacy/rust, README под C++ | 📂 Открыта | 2 |
-| TEL-00012 | sim: режимы сбоев (потери пакетов, error, таймауты) | 📂 Открыта | 3 |
+| TEL-00012 | sim: режимы сбоев (потери пакетов, error, таймауты) | ✅ Выполнена | 3 |
 | TEL-00013 | Купить батарею и первый реальный полёт по чек-листу | ❗ Владелец | 2 |
 | TEL-00028 | core: иерархия дронов база → семейство → модель | ✅ Выполнена | 8 |
 | TEL-00029 | sim: модель дрона в симуляторе (tello / tello-edu) | ✅ Выполнена | 3 |
@@ -100,7 +100,7 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 ### 🧪 Simulator
 
 ### [TEL-00012] sim: режимы сбоев (потери пакетов, error, таймауты)
-- **Status:** Открыта
+- **Status:** ✅ Выполнена
 - **Complexity:** 3
 - **Description:** Флаги `tello-sim`: `--drop N%` (потеря ответов), `--delay MS`, `--fail-cmd <name>`
   (всегда `error`), `--battery N`. Тесты: ретраи и таймауты транспорта, поведение CLI при ошибке.

@@ -4,8 +4,11 @@
 #include "tello/udp_socket.hpp"
 
 #include <chrono>
+#include <atomic>
 #include <cstdint>
 #include <functional>
+#include <random>
+#include <set>
 #include <mutex>
 #include <optional>
 #include <string>
@@ -36,6 +39,12 @@ struct SimConfig {
     std::chrono::milliseconds idle_land{15'000};  // the drone lands after this silence
     std::chrono::milliseconds state_period{100};
     CommandLog on_command;  // optional
+
+    // Failure modes (TEL-00012), all off by default.
+    int drop_percent = 0;                     // replies lost (the command still runs)
+    std::chrono::milliseconds reply_delay{0};  // before every reply
+    std::set<std::string> fail_commands;      // these always answer "error", nothing happens
+    unsigned seed = 1;                        // drop pattern, repeatable in tests
 };
 
 // Simulated drone model. Error texts follow the real drone where known, otherwise are close.
@@ -86,6 +95,7 @@ public:
 
     [[nodiscard]] std::uint16_t command_port() const { return command_port_; }
     [[nodiscard]] SimModel model() const;
+    [[nodiscard]] int dropped_replies() const { return dropped_.load(); }
 
 private:
     void serve_commands(const std::stop_token& stop);
@@ -97,7 +107,9 @@ private:
     std::uint16_t command_port_;
     mutable std::mutex mutex_;
     SimLogic logic_;
-    std::string client_host_;  // sender of "command": telemetry goes there, like on the real drone
+    std::string client_host_;
+    std::mt19937 random_;           // command thread only
+    std::atomic<int> dropped_{0};  // sender of "command": telemetry goes there, like on the real drone
     std::jthread command_thread_;  // threads last: started after everything they use exists
     std::jthread state_thread_;
 };

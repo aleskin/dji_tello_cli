@@ -113,7 +113,9 @@ TEST_F(ClassicCli, HelpForOneCommand) {
 }
 
 TEST_F(ClassicCli, InfoSurvivesTimeouts) {
-    mock->reply(std::nullopt);  // battery? times out
+    for (int i = 0; i < 3; ++i) {
+        mock->reply(std::nullopt);  // battery? times out, retries included
+    }
     mock->reply("90");
     cli.execute_line("info");
     EXPECT_NE(out.str().find("drone:      Tello (SDK 1.3)"), std::string::npos);

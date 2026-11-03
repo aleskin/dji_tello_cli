@@ -34,6 +34,9 @@ struct DroneTimeouts {
     // The drone answers "ok" only after a move has finished.
     std::chrono::milliseconds action{20'000};
     std::chrono::milliseconds query{3'000};
+    // Extra attempts for read queries only. Actions are never resent: a lost "ok" for
+    // "forward 100" does not mean the drone did not fly, and a resend would fly twice.
+    int query_retries = 2;
 };
 
 // Layer 2: the Tello text protocol over UDP, i.e. the SDK 1.3 command set every Tello has.
