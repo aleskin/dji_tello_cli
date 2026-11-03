@@ -96,8 +96,19 @@ make format       # clang-format all C++ code (Allman, 4 spaces)
 make clean
 ```
 
-Requirements: `cmake` ≥ 3.20, `g++` ≥ 13 or `clang++` ≥ 16, `googletest` (`apt install cmake googletest`).
+Requirements: `cmake` ≥ 3.20, `g++` ≥ 13 or `clang++` ≥ 16, `googletest` (`apt install cmake googletest`),
+FFmpeg dev libs (`libavcodec-dev libavformat-dev libavutil-dev`, libx264 for the simulator).
 If `/usr/src/googletest` is missing, CMake downloads GoogleTest v1.14.0.
+
+Environment notes (owner's machine, no `sudo` for the agent):
+- `clang-format` / `clang-tidy` are not installed system-wide: `python3 -m venv /tmp/cmk &&
+  /tmp/cmk/bin/pip install clang-format clang-tidy`, then `make format CLANG_FORMAT=/tmp/cmk/bin/clang-format`,
+  `make sanity-check CLANG_TIDY=/tmp/cmk/bin/clang-tidy`. Both must stay clean (0 findings).
+- Manual checks: start `tello-sim --port 0 ...` in the background and stop it with `kill -TERM <pid>`
+  (a background sim ignores SIGINT by design, see TEL-00032). Never `pkill -f <pattern>`: the
+  pattern matches the agent's own shell command line and kills it.
+- Terminal behaviour (Ctrl+C, the replxx prompt) is checked under a pty (Python `pty.fork`),
+  not with plain pipes.
 
 ---
 
