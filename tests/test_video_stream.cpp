@@ -7,6 +7,7 @@
 #include "tello/udp_socket.hpp"
 #include "tello/udp_transport.hpp"
 #include "video/video_stream.hpp"
+#include "video/viewer.hpp"
 
 extern "C"
 {
@@ -18,8 +19,10 @@ extern "C"
 #include <chrono>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <sstream>
 #include <thread>
+#include <utility>
 
 namespace
 {
@@ -205,7 +208,101 @@ TEST_F(VideoCliTest, StatusAndStopWithoutVideo)
     cli->execute_line("video stop");
     EXPECT_EQ(out.str(), "video is off\nvideo is off\n");
     cli->execute_line("video rewind");
-    EXPECT_NE(out.str().find("usage: video start|stop|status"), std::string::npos);
+    EXPECT_NE(out.str().find("usage: video start|stop|show|hide|status"), std::string::npos);
+}
+
+// Stands in for the SDL window: records that it exists and pulls pictures like the real one.
+class FakeViewer : public video::Viewer
+{
+public:
+    explicit FakeViewer(video::ViewerSources s, int& alive)
+        : sources(std::move(s))
+        , alive_(alive)
+    {
+        ++alive_;
+    }
+    FakeViewer(const FakeViewer&) = delete;
+    FakeViewer& operator=(const FakeViewer&) = delete;
+    FakeViewer(FakeViewer&&) = delete;
+    FakeViewer& operator=(FakeViewer&&) = delete;
+    ~FakeViewer() override
+    {
+        --alive_;
+    }
+    [[nodiscard]] bool is_open() const override
+    {
+        return open;
+    }
+    [[nodiscard]] std::string error() const override
+    {
+        return {};
+    }
+
+    video::ViewerSources sources;
+    bool open = true;
+
+private:
+    int& alive_;
+};
+
+TEST_F(VideoCliTest, ShowWithoutWindowSupportIsRefused)
+{
+    EXPECT_TRUE(cli->execute_line("video show"));
+    EXPECT_NE(out.str().find("no window support"), std::string::npos) << out.str();
+    EXPECT_FALSE(sim->model().streaming);
+}
+
+TEST_F(VideoCliTest, ShowAndHideTheWindow)
+{
+    int alive = 0;
+    FakeViewer* viewer = nullptr;
+    cli->set_viewer_factory(
+        [&alive, &viewer](video::ViewerSources s) -> std::unique_ptr<video::Viewer>
+        {
+            auto v = std::make_unique<FakeViewer>(std::move(s), alive);
+            viewer = v.get();
+            return v;
+        });
+    EXPECT_TRUE(cli->execute_line("video show"));
+    EXPECT_NE(out.str().find("window open"), std::string::npos) << out.str();
+    EXPECT_NE(out.str().find("camera stays on"), std::string::npos);
+    EXPECT_EQ(alive, 1);
+    EXPECT_TRUE(sim->model().streaming);
+
+    // The window gets real pictures from the stream and an empty OSD without telemetry.
+    std::optional<video::Picture> picture;
+    const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    while (!picture && std::chrono::steady_clock::now() < until)
+    {
+        picture = viewer->sources.picture(0);
+        std::this_thread::sleep_for(milliseconds(20));
+    }
+    ASSERT_TRUE(picture);
+    EXPECT_EQ(picture->width, 960);
+    EXPECT_EQ(picture->y.size(), 960u * 720u);
+    EXPECT_EQ(picture->u.size(), 480u * 360u);
+    EXPECT_FALSE(viewer->sources.picture(picture->number + 1'000'000)); // nothing newer
+    EXPECT_FALSE(viewer->sources.osd().battery);
+
+    out.str("");
+    cli->execute_line("video show");
+    EXPECT_EQ(out.str(), "window already open\n");
+    out.str("");
+    cli->execute_line("video status");
+    EXPECT_NE(out.str().find("window open"), std::string::npos) << out.str();
+
+    viewer->open = false; // the user closed it: "show" opens a new one
+    cli->execute_line("video show");
+    EXPECT_EQ(alive, 1);
+    out.str("");
+    cli->execute_line("video hide; video hide");
+    EXPECT_EQ(out.str(), "window closed\nno window\n");
+    EXPECT_EQ(alive, 0);
+    EXPECT_TRUE(sim->model().streaming); // hiding the window keeps the camera on
+
+    cli->execute_line("video show; video stop");
+    EXPECT_EQ(alive, 0);
+    EXPECT_FALSE(sim->model().streaming);
 }
 
 TEST(VideoStreamTest, StopWithoutRecordingIsEmpty)

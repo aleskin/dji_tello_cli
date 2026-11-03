@@ -3,6 +3,7 @@
 #include "drone/drone_base.hpp"
 #include "tello/state_listener.hpp"
 #include "video/video_stream.hpp"
+#include "video/viewer.hpp"
 
 #include <chrono>
 #include <filesystem>
@@ -13,6 +14,7 @@
 #include <ostream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace cli
@@ -84,6 +86,12 @@ public:
         return commands_;
     }
 
+    // How "video show" opens the live window; without a factory the command is refused.
+    void set_viewer_factory(video::ViewerFactory factory)
+    {
+        viewer_factory_ = std::move(factory);
+    }
+
 private:
     using Args = std::vector<std::string_view>;
     struct Entry
@@ -115,6 +123,8 @@ private:
     void video_command(const Args& args);
     void ensure_stream(); // streamon + reader, if not running yet
     void take_photo();
+    void show_window();
+    [[nodiscard]] video::Osd osd() const;
 
     drone::DroneBase& drone_;
     std::ostream& out_;
@@ -128,6 +138,8 @@ private:
     bool airborne_ = false;
     bool in_mission_ = false;
     std::unique_ptr<video::VideoStream> video_; // between "video start" and "video stop"
+    video::ViewerFactory viewer_factory_;
+    std::unique_ptr<video::Viewer> viewer_; // after video_: it reads the stream, so it goes first
 };
 
 [[nodiscard]] std::string_view to_string(Category c);

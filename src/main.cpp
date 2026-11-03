@@ -7,6 +7,7 @@
 #include "tello/state_listener.hpp"
 #include "tello/udp_transport.hpp"
 #include "tello/version.hpp"
+#include "video/video_window.hpp"
 
 #include <replxx.hxx>
 #include <unistd.h>
@@ -27,6 +28,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 
 namespace
 {
@@ -352,6 +354,11 @@ int main(int argc, char** argv)
                                         {
                                             return g_interrupted.load();
                                         });
+        processor.set_viewer_factory(
+            [](video::ViewerSources sources) -> std::unique_ptr<video::Viewer>
+            {
+                return std::make_unique<video::VideoWindow>(std::move(sources));
+            });
 
         std::cout << "tello " << tello::version() << " — " << drone->model() << " at "
                   << opt.drone.host << ':' << opt.drone.port << ". 'help' lists commands.\n";

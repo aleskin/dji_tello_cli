@@ -8,7 +8,9 @@ extern "C"
 #include <libavutil/mathematics.h>
 }
 
+#include <algorithm>
 #include <array>
+#include <cstddef>
 #include <cstdio>
 #include <ctime>
 #include <fstream>
@@ -245,7 +247,7 @@ void VideoStream::run(const std::stop_token& stop)
         status_.error = "no video in " + source_;
         return;
     }
-    // Decoder for photo (and the live window later); recording does not need it.
+    // Decoder for photo and the live window; recording does not need it.
     const AVCodec* h264 = avcodec_find_decoder(input->stream()->codecpar->codec_id);
     input->decoder = h264 != nullptr ? avcodec_alloc_context3(h264) : nullptr;
     input->scratch = av_frame_alloc();
@@ -355,6 +357,34 @@ bool VideoStream::wait_for_frame(std::chrono::milliseconds timeout) const
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
     }
+}
+
+std::optional<Picture> VideoStream::latest_picture(std::int64_t newer_than) const
+{
+    const std::scoped_lock lock(mutex_);
+    if (!input_ || status_.frames <= newer_than || input_->latest->format != AV_PIX_FMT_YUV420P)
+    {
+        return std::nullopt;
+    }
+    const AVFrame* f = input_->latest;
+    Picture picture;
+    picture.width = f->width;
+    picture.height = f->height;
+    picture.number = status_.frames;
+    auto copy_plane = [f](int plane, int w, int h, std::vector<std::uint8_t>& to)
+    {
+        to.resize(static_cast<std::size_t>(w) * static_cast<std::size_t>(h));
+        for (int row = 0; row < h; ++row)
+        {
+            const std::uint8_t* from =
+                f->data[plane] + static_cast<std::ptrdiff_t>(row) * f->linesize[plane];
+            std::copy(from, from + w, to.begin() + static_cast<std::ptrdiff_t>(row) * w);
+        }
+    };
+    copy_plane(0, f->width, f->height, picture.y);
+    copy_plane(1, (f->width + 1) / 2, (f->height + 1) / 2, picture.u);
+    copy_plane(2, (f->width + 1) / 2, (f->height + 1) / 2, picture.v);
+    return picture;
 }
 
 void VideoStream::save_photo(const std::filesystem::path& path) const

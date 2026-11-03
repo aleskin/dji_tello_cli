@@ -6,8 +6,10 @@
 #include <filesystem>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <thread>
+#include <vector>
 
 namespace video
 {
@@ -22,6 +24,17 @@ struct StreamStatus
     std::string recording;             // file being written, empty when not recording
     bool waiting_for_keyframe = false; // recording asked for, file opens at the next keyframe
     std::string error;                 // last failure (open, write), empty if none
+};
+
+// A decoded camera picture, YUV 4:2:0 planes packed without padding (u and v are half size).
+struct Picture
+{
+    int width = 0;
+    int height = 0;
+    std::int64_t number = 0; // StreamStatus::frames when it was decoded
+    std::vector<std::uint8_t> y;
+    std::vector<std::uint8_t> u;
+    std::vector<std::uint8_t> v;
 };
 
 // Reads an H.264 stream (an FFmpeg URL such as "udp://0.0.0.0:11111") in a background thread
@@ -50,6 +63,10 @@ public:
     // Saves the last decoded picture as JPEG. Throws std::runtime_error when there is none yet
     // or encoding fails.
     void save_photo(const std::filesystem::path& path) const;
+
+    // A copy of the last decoded picture if it is newer than `newer_than` (a Picture::number),
+    // std::nullopt otherwise: a viewer polls with the number it already shows.
+    [[nodiscard]] std::optional<Picture> latest_picture(std::int64_t newer_than = 0) const;
 
     // Blocks until a picture has been decoded or `timeout` passed; true if there is one.
     bool wait_for_frame(std::chrono::milliseconds timeout) const;

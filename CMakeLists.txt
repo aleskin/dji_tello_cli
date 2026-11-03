@@ -24,6 +24,8 @@ find_package(Threads REQUIRED)
 find_package(PkgConfig REQUIRED)
 # FFmpeg: the simulator encodes its test video, the CLI (TEL-00014) decodes the drone's stream.
 pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET libavcodec libavformat libavutil)
+# SDL2: the live camera window (TEL-00016).
+pkg_check_modules(SDL2 REQUIRED IMPORTED_TARGET sdl2)
 
 # Strict warnings for our own targets only: third-party code (GoogleTest) is built as is.
 function(tello_strict target)
@@ -58,10 +60,15 @@ target_link_libraries(tello-sim PRIVATE tello_sim)
 tello_strict(tello-sim)
 
 # Video: camera stream reader and MP4 recorder, vendor-neutral.
-add_library(tello_video STATIC src/video/video_stream.cpp)
+add_library(tello_video STATIC src/video/video_stream.cpp src/video/viewer.cpp)
 target_include_directories(tello_video PUBLIC include)
 target_link_libraries(tello_video PUBLIC Threads::Threads PRIVATE PkgConfig::FFMPEG)
 tello_strict(tello_video)
+
+# Live picture window (SDL2), plugged into the CLI binary; the command layer stays SDL-free.
+add_library(tello_window STATIC src/video/video_window.cpp)
+target_link_libraries(tello_window PUBLIC tello_video PRIVATE PkgConfig::SDL2)
+tello_strict(tello_window)
 
 # CLI: command layer as a library (tested), the binary adds line editing (replxx).
 add_library(tello_cli_core STATIC src/cli/command_processor.cpp)
@@ -78,7 +85,7 @@ FetchContent_MakeAvailable(replxx)
 
 # The target name differs from the library; the binary is still called "tello".
 add_executable(tello_cli src/main.cpp)
-target_link_libraries(tello_cli PRIVATE tello_cli_core replxx::replxx)
+target_link_libraries(tello_cli PRIVATE tello_cli_core tello_window replxx::replxx)
 set_target_properties(tello_cli PROPERTIES OUTPUT_NAME tello)
 tello_strict(tello_cli)
 
@@ -108,9 +115,10 @@ if(TELLO_BUILD_TESTS)
         tests/test_failures.cpp
         tests/test_sim_video.cpp
         tests/test_video_stream.cpp
+        tests/test_video_window.cpp
     )
     target_include_directories(tello_tests PRIVATE tests)
-    target_link_libraries(tello_tests PRIVATE tello_sim tello_cli_core PkgConfig::FFMPEG GTest::gtest_main)
+    target_link_libraries(tello_tests PRIVATE tello_sim tello_cli_core tello_window PkgConfig::FFMPEG GTest::gtest_main)
     tello_strict(tello_tests)
     include(GoogleTest)
     gtest_discover_tests(tello_tests)

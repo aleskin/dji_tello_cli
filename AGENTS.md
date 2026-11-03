@@ -97,7 +97,8 @@ make clean
 ```
 
 Requirements: `cmake` ≥ 3.20, `g++` ≥ 13 or `clang++` ≥ 16, `googletest` (`apt install cmake googletest`),
-FFmpeg dev libs (`libavcodec-dev libavformat-dev libavutil-dev`, libx264 for the simulator).
+FFmpeg dev libs (`libavcodec-dev libavformat-dev libavutil-dev`, libx264 for the simulator),
+`libsdl2-dev` for the live window (tests use SDL's offscreen `dummy` driver).
 If `/usr/src/googletest` is missing, CMake downloads GoogleTest v1.14.0.
 
 Environment notes (owner's machine, no `sudo` for the agent):

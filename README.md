@@ -7,12 +7,13 @@ with a fake drone (`tello-sim`) so everything can be tried without flying.
 
 - Linux, `g++` ≥ 13 or `clang++` ≥ 16, `cmake` ≥ 3.20
 - FFmpeg development libraries (`libavcodec-dev libavformat-dev libavutil-dev`, with libx264)
+- SDL2 development library (`libsdl2-dev`) for the live camera window
 - GoogleTest sources in `/usr/src/googletest` (otherwise CMake downloads v1.14.0)
 - Internet on the first configure: the line editor [replxx](https://github.com/AmokHuginnsson/replxx)
   is fetched by CMake
 
 ```bash
-sudo apt install cmake g++ googletest libavcodec-dev libavformat-dev libavutil-dev
+sudo apt install cmake g++ googletest libavcodec-dev libavformat-dev libavutil-dev libsdl2-dev
 ```
 
 Optional, for `make sanity-check`: `sudo apt install clang-tidy cppcheck`.
@@ -71,7 +72,7 @@ line separated by `;`; the line stops at the first error.
 | Flight | `connect`, `takeoff`, `land`, `hover` (EDU), `emergency` (motors off, no confirmation) |
 | Movement | `forward/back/left/right/up/down <20..500 cm>`, `cw/ccw <1..360>`, `flip <l\|r\|f\|b>`, `speed <10..100>`, `go <x> <y> <z> <speed>` |
 | Mission | `mission <file>`, `square <cm>` |
-| Video | `video start` (record the camera to `~/Videos/tello/tello_DATE_TIME.mp4`), `video stop`, `video status`, `photo` (JPEG of the current picture to `~/Pictures/tello/`) |
+| Video | `video start` (record the camera to `~/Videos/tello/tello_DATE_TIME.mp4`), `video stop`, `video show` / `video hide` (live window with battery, height and heading), `video status`, `photo` (JPEG of the current picture to `~/Pictures/tello/`) |
 | Telemetry | `battery`, `height`, `wifi`, `get_speed`, `temp`, `time`, `attitude`, `baro`, `tof`, `sdk` (EDU), `sn` (EDU), `state` |
 
 `takeoff` has no height argument: take off, then `up <cm>`.

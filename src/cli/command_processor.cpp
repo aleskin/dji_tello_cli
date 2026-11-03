@@ -380,8 +380,9 @@ void CommandProcessor::register_commands()
     add({"video",
          {},
          C::Video,
-         "video start|stop|status",
-         "record the camera to an MP4 in " + session_.video_dir.string(),
+         "video start|stop|show|hide|status",
+         "record the camera to an MP4 in " + session_.video_dir.string() +
+             "; show/hide the live window",
          Capability::Video},
         [this](const Args& a)
         {
@@ -699,9 +700,21 @@ void CommandProcessor::print_info()
 void CommandProcessor::video_command(const Args& args)
 {
     const std::string_view what = args.empty() ? "status" : args[0];
-    if (args.size() > 1 || (what != "start" && what != "stop" && what != "status"))
+    if (args.size() > 1 ||
+        (what != "start" && what != "stop" && what != "show" && what != "hide" && what != "status"))
     {
-        throw UsageError("usage: video start|stop|status");
+        throw UsageError("usage: video start|stop|show|hide|status");
+    }
+    if (what == "show")
+    {
+        show_window();
+        return;
+    }
+    if (what == "hide")
+    {
+        out_ << (viewer_ && viewer_->is_open() ? "window closed\n" : "no window\n");
+        viewer_.reset();
+        return;
     }
     if (what == "start")
     {
@@ -718,6 +731,7 @@ void CommandProcessor::video_command(const Args& args)
             out_ << "video is off\n";
             return;
         }
+        viewer_.reset();
         const auto saved = video_->stop_recording();
         const std::string error = video_->status().error;
         video_.reset();
@@ -738,6 +752,10 @@ void CommandProcessor::video_command(const Args& args)
         out_ << ", " << s.width << 'x' << s.height;
     }
     out_ << '\n';
+    if (viewer_ && viewer_->is_open())
+    {
+        out_ << "window open\n";
+    }
     if (!s.recording.empty())
     {
         out_ << "recording to " << s.recording << '\n';
@@ -759,6 +777,43 @@ void CommandProcessor::ensure_stream()
         drone_.start_video();
         video_ = std::make_unique<video::VideoStream>(drone_.video_source());
     }
+}
+
+void CommandProcessor::show_window()
+{
+    if (!viewer_factory_)
+    {
+        throw UsageError("video show: no window support in this build");
+    }
+    if (viewer_ && viewer_->is_open())
+    {
+        out_ << "window already open\n";
+        return;
+    }
+    viewer_.reset();
+    const bool started = !video_;
+    ensure_stream();
+    const video::VideoStream* stream = video_.get(); // outlives the viewer, see "video stop"
+    viewer_ = viewer_factory_({[stream](std::int64_t newer_than)
+                               {
+                                   return stream->latest_picture(newer_than);
+                               },
+                               [this]
+                               {
+                                   return osd();
+                               }});
+    out_ << "window open (close it or 'video hide')"
+         << (started ? ", camera stays on: 'video stop'" : "") << '\n';
+}
+
+video::Osd CommandProcessor::osd() const
+{
+    const auto snap = telemetry_ ? telemetry_->latest() : std::nullopt;
+    if (!snap || std::chrono::steady_clock::now() - snap->received > std::chrono::seconds(2))
+    {
+        return {};
+    }
+    return {snap->state.bat, snap->state.h, video::heading_from_yaw(snap->state.yaw)};
 }
 
 void CommandProcessor::take_photo()
