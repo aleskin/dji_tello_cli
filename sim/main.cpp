@@ -150,9 +150,16 @@ int main(int argc, char** argv)
     }
 
     // Block the stop signals before the simulator threads start, so only sigwait sees them.
+    // An inherited SIG_IGN for SIGINT (make run-sim: Ctrl+C belongs to the CLI) is kept, like
+    // nohup does: on Linux a blocked signal is queued even when ignored, sigwait would take it.
     sigset_t signals;
     sigemptyset(&signals);
-    sigaddset(&signals, SIGINT);
+    struct sigaction inherited{};
+    sigaction(SIGINT, nullptr, &inherited);
+    if (inherited.sa_handler != SIG_IGN)
+    {
+        sigaddset(&signals, SIGINT);
+    }
     sigaddset(&signals, SIGTERM);
     pthread_sigmask(SIG_BLOCK, &signals, nullptr);
 

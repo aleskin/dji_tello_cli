@@ -23,9 +23,14 @@ sim: build
 	./$(BUILD_DIR)/tello-sim --port $(SIM_PORT)
 
 # CLI against a simulator started in the background; the simulator stops with the CLI.
+# Ctrl+C reaches the whole terminal process group: this shell and the simulator ignore it,
+# the CLI handles it itself (lands in flight), so one Ctrl+C never ends the session.
+# The pause lets the simulator bind its port before the CLI sends "command".
 run-sim: build
-	@./$(BUILD_DIR)/tello-sim --port $(SIM_PORT) & SIM=$$!; \
-	trap 'kill $$SIM 2>/dev/null' EXIT INT TERM; \
+	@trap '' INT; \
+	./$(BUILD_DIR)/tello-sim --port $(SIM_PORT) & SIM=$$!; \
+	trap 'kill $$SIM 2>/dev/null' EXIT TERM; \
+	sleep 0.5; \
 	./$(BUILD_DIR)/tello --host 127.0.0.1 --port $(SIM_PORT)
 
 clean:

@@ -26,7 +26,7 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
 | TEL-00020 | core: позиция — базовый класс, счисление по командам, return-to-home | 📂 Открыта | 8 |
 | TEL-00024 | sim: эмуляция видеопотока | 📂 Открыта | 5 |
 | TEL-00031 | build: разобрать замечания make sanity-check | ✅ Выполнена | 3 |
-| TEL-00032 | cli: Ctrl+C под make run-sim не должен ронять симулятор | 📂 Открыта | 2 |
+| TEL-00032 | cli: Ctrl+C под make run-sim не должен ронять симулятор | ✅ Выполнена | 2 |
 
 ## 📝 Детали задач
 
@@ -72,7 +72,7 @@ Backlog: `TODO-next-sprint.md`. Rules: `AGENTS.md`.
   `~/.config/tello/aliases`. Настройки (host, порты, пороги батареи) — `~/.config/tello/config`.
 
 ### [TEL-00032] cli: Ctrl+C под make run-sim не должен ронять симулятор
-- **Status:** Открыта
+- **Status:** ✅ Выполнена
 - **Complexity:** 2
 - **Description:** Ctrl+C в терминале получает вся группа процессов: `make`, `tello-sim`, `tello`.
   Нужно: CLI сажает дрон и продолжает работать, симулятор жив, `make` не обрывает сессию.
