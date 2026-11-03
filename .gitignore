@@ -11,6 +11,12 @@
 # IDE specific files
 .idea/
 .vscode/
+# Eclipse CDT: personal project files and its managed-build output (the real build is CMake)
+.project
+.cproject
+.settings/
+/Debug/
+/Release/
 *.swp
 *.swo
 .DS_Store
