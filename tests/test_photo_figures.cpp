@@ -228,6 +228,18 @@ TEST_F(PhotoFigures, LoopTowardThePilotCameraSide)
     EXPECT_LT(std::hypot(sim->model().x_cm, sim->model().y_cm), 3.0);
 }
 
+TEST_F(PhotoFigures, PanoramaTurnsOnTheSpot)
+{
+    start();
+    ASSERT_TRUE(cli->execute_line("panorama 150 90 ccw")) << out.str();
+    EXPECT_EQ(commands(), (std::vector<std::string>{"streamon", "takeoff", "go 0 0 70 30", "ccw 90",
+                                                    "ccw 90", "ccw 90", "land"}));
+    EXPECT_EQ(photos().size(), 4U);
+    EXPECT_NE(out.str().find("panorama: height 150 cm, 4 photos every 90 degrees ccw"),
+              std::string::npos)
+        << out.str();
+}
+
 TEST_F(PhotoFigures, FailedTurnLandsWhereTheDroneIs)
 {
     config.fail_commands = {"cw"};
@@ -290,6 +302,8 @@ TEST_F(FigureRefusals, BadArgumentsSendNothing)
          "wheel: the lowest point (height - radius) must be at least 50 cm, got 0"},
         {"wheel 900 200", "wheel: the highest point (height + radius) must be at most 1000 cm"},
         {"loop 200 100 30 cw", "usage: loop"},
+        {"panorama 200 25", "panorama step must divide 360, got 25"},
+        {"panorama 200 30 in", "usage: panorama [height] [step] [cw|ccw]"},
     };
     for (const auto& [line, error] : cases)
     {

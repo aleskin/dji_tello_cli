@@ -267,6 +267,35 @@ FigurePlan plan_loop(const FigureArgs& args, const std::string& usage)
     return plan_vertical(args, usage, false);
 }
 
+FigurePlan plan_panorama(const FigureArgs& args, const std::string& usage)
+{
+    const std::string name = "panorama";
+    const Parsed p(args, usage, {kFigureHeightCm, kFigureStepDeg}, {"cw", "ccw"});
+    const int height = p.number(0);
+    const int step = p.number(1);
+    check_range(name, "height (cm)", height, kMinFigureHeightCm, kMaxFigureHeightCm);
+    check_range(name, "step (degrees)", step, kMinFigureStepDeg, kMaxFigureStepDeg);
+    if (360 % step != 0)
+    {
+        throw FigureError(name + " step must divide 360, got " + std::to_string(step));
+    }
+    const double sign = p.pick({"cw", "ccw"}) == "cw" ? 1.0 : -1.0;
+    const int count = 360 / step;
+
+    FigurePlan plan = new_plan(name,
+                               "height " + std::to_string(height) + " cm, " +
+                                   std::to_string(count) + " photos every " + std::to_string(step) +
+                                   " degrees " + std::string(p.pick({"cw", "ccw"})),
+                               kFigureSpeed);
+    plan.steps.push_back(FigureStep::move(0, 0, height));
+    for (int k = 0; k < count; ++k)
+    {
+        plan.steps.push_back(FigureStep::face(sign * step * k));
+        plan.steps.push_back(FigureStep::photo());
+    }
+    return plan;
+}
+
 } // namespace
 
 FigureStep FigureStep::move(double x_cm, double y_cm, double z_cm)
@@ -335,6 +364,10 @@ const std::vector<FigureSpec>& figure_specs()
          "like wheel, but the circle goes away from you and back (from the top: away first); "
          "camera in (to you), out (forward) or side (right)",
          plan_loop},
+        {"panorama", "panorama [height] [step] [cw|ccw]",
+         "take off, climb to height (200 cm) and turn on the spot, a photo every step degrees "
+         "(30) all around; land",
+         plan_panorama},
     };
     return specs;
 }
