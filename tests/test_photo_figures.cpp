@@ -311,6 +311,25 @@ TEST_F(PhotoFigures, FlipsNeedHalfTheBattery)
     EXPECT_NE(out.str().find("flips: battery 40 %, needs 50 %"), std::string::npos) << out.str();
 }
 
+TEST_F(PhotoFigures, HelixClimbsAndWidens)
+{
+    start();
+    ASSERT_TRUE(cli->execute_line("helix 1 100 200 100 200 90 ccw")) << out.str();
+    const auto c = commands();
+    EXPECT_EQ(c[0], "streamon");
+    EXPECT_EQ(c[2], "go 0 0 20 30");  // 100 cm
+    EXPECT_EQ(c[3], "go 100 0 0 30"); // out on the first radius
+    EXPECT_EQ(c[4], "cw 180");        // camera in
+    EXPECT_EQ(std::ranges::count(c, std::string("ccw 90")), 4);
+    EXPECT_EQ(c.back(), "land");
+    EXPECT_EQ(height_range(), (std::pair<int, int>{80, 200}));
+    EXPECT_LT(std::hypot(sim->model().x_cm, sim->model().y_cm), 3.0);
+    EXPECT_NE(out.str().find("helix: 1 turns ccw, height 100 to 200 cm, radius 100 to 200 cm, "
+                             "camera in, video"),
+              std::string::npos)
+        << out.str();
+}
+
 TEST_F(PhotoFigures, FailedTurnLandsWhereTheDroneIs)
 {
     config.fail_commands = {"cw"};
@@ -382,6 +401,8 @@ TEST_F(FigureRefusals, BadArgumentsSendNothing)
         {"bounce 11", "bounce times must be 1..10, got 11"},
         {"flips l x", "usage: flips [l|r|f|b ...]"},
         {"flips 3", "usage: flips [l|r|f|b ...]"},
+        {"helix 6", "helix turns must be 1..5, got 6"},
+        {"helix 2 100 300 50 200 10", "10 degrees of a 50 cm circle"},
     };
     for (const auto& [line, error] : cases)
     {

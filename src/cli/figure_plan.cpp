@@ -29,6 +29,11 @@ constexpr int kFlipHeightCm = 150;
 constexpr int kMaxFlips = 8;
 constexpr int kMinFlipBattery = 50; // the Tello refuses flips below
 constexpr std::chrono::milliseconds kFlipPause{1000};
+constexpr int kHelixTurns = 2;
+constexpr int kMaxHelixTurns = 5;
+constexpr int kHelixFromCm = 100;
+constexpr int kHelixToCm = 300;
+constexpr int kHelixToRadiusCm = 200;
 constexpr std::chrono::milliseconds kPullHold{2000}; // a still shot at both ends of a video move
 
 // Rough Tello timing for the estimate.
@@ -467,6 +472,56 @@ FigurePlan plan_flips(const FigureArgs& args, const std::string& usage)
     return plan;
 }
 
+FigurePlan plan_helix(const FigureArgs& args, const std::string& usage)
+{
+    const std::string name = "helix";
+    const Parsed p(args, usage,
+                   {kHelixTurns, kHelixFromCm, kHelixToCm, kFigureRadiusCm, kHelixToRadiusCm,
+                    kFigureStepDeg, kFigureSpeed},
+                   {"cw", "ccw"});
+    const int turns = p.number(0);
+    const int from = p.number(1);
+    const int to = p.number(2);
+    const int from_radius = p.number(3);
+    const int to_radius = p.number(4);
+    const int step = p.number(5);
+    const int speed = p.number(6);
+    check_range(name, "turns", turns, 1, kMaxHelixTurns);
+    check_range(name, "from height (cm)", from, kMinFigureHeightCm, kMaxFigureHeightCm);
+    check_range(name, "to height (cm)", to, kMinFigureHeightCm, kMaxFigureHeightCm);
+    check_range(name, "to radius (cm)", to_radius, kMinFigureRadiusCm, kMaxFigureRadiusCm);
+    check_circle(name, std::min(from_radius, to_radius), step);
+    check_range(name, "from radius (cm)", from_radius, kMinFigureRadiusCm, kMaxFigureRadiusCm);
+    check_speed(name, speed);
+    const std::string_view direction = p.pick({"cw", "ccw"});
+    const double sign = direction == "cw" ? 1.0 : -1.0;
+    const int count = turns * 360 / step;
+
+    FigurePlan plan = new_plan(
+        name,
+        std::to_string(turns) + " turns " + std::string(direction) + ", height " +
+            std::to_string(from) + " to " + std::to_string(to) + " cm, radius " +
+            std::to_string(from_radius) + " to " + std::to_string(to_radius) + " cm, camera in",
+        speed);
+    plan.video = true;
+    auto lerp = [count](int a, int b, int k)
+    {
+        return a + (b - a) * static_cast<double>(k) / count;
+    };
+    plan.steps.push_back(FigureStep::move(0, 0, from));
+    for (int k = 0; k <= count; ++k)
+    {
+        const double bearing = sign * step * k;
+        const double radius = lerp(from_radius, to_radius, k);
+        plan.steps.push_back(FigureStep::move(radius * std::cos(bearing * kDegree),
+                                              radius * std::sin(bearing * kDegree),
+                                              lerp(from, to, k)));
+        plan.steps.push_back(FigureStep::face(bearing + 180.0));
+    }
+    plan.steps.push_back(FigureStep::move(0, 0, to));
+    return plan;
+}
+
 } // namespace
 
 FigureStep FigureStep::move(double x_cm, double y_cm, double z_cm)
@@ -559,6 +614,13 @@ const std::vector<FigureSpec>& figure_specs()
          "take off, climb to 150 cm and flip in the given directions (all four), a pause between; "
          "needs 50 % battery; land",
          plan_flips},
+        {"helix",
+         "helix [turns] [from height] [to height] [from radius] [to radius] [step] [cw|ccw] "
+         "[speed]",
+         "take off and spiral around the takeoff point with video, camera in: turns (2), height "
+         "100 to 300 cm, radius 100 to 200 cm, a leg every step degrees (30); back to the center "
+         "and land",
+         plan_helix},
     };
     return specs;
 }
