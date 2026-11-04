@@ -53,6 +53,8 @@ constexpr int kMaxTimelapseFrames = 300;
 constexpr int kHyperlapseFrames = 20;
 constexpr int kHyperlapseSpeed = 20;
 constexpr int kMovieFps = 10;
+constexpr int kScanWidthCm = 300;
+constexpr int kMaxScanWidthCm = 1000;
 constexpr std::chrono::milliseconds kPullHold{2000}; // a still shot at both ends of a video move
 
 // Rough Tello timing for the estimate.
@@ -806,6 +808,57 @@ FigurePlan plan_hyperlapse(const FigureArgs& args, const std::string& usage)
     return plan;
 }
 
+FigurePlan plan_scan(const FigureArgs& args, const std::string& usage)
+{
+    const std::string name = "scan";
+    const Parsed p(args, usage,
+                   {kScanWidthCm, kTowerFromCm, kHelixToCm, kTowerStepCm, kFigureSpeed}, {});
+    const int width = p.number(0);
+    const int from = p.number(1);
+    const int to = p.number(2);
+    const int step = p.number(3);
+    const int speed = p.number(4);
+    check_range(name, "width (cm)", width, kMinMoveCm, kMaxScanWidthCm);
+    check_range(name, "from height (cm)", from, kMinFigureHeightCm, kMaxFigureHeightCm);
+    check_range(name, "to height (cm)", to, kMinFigureHeightCm, kMaxFigureHeightCm);
+    check_range(name, "step (cm)", step, kMinMoveCm, kMaxMoveCm);
+    check_speed(name, speed);
+    if (from > to)
+    {
+        throw FigureError(name + ": from must not be above to, got " + std::to_string(from) +
+                          " and " + std::to_string(to));
+    }
+    if (step > width)
+    {
+        throw FigureError(name + ": step " + std::to_string(step) + " cm is wider than the width " +
+                          std::to_string(width) + " cm");
+    }
+    const int columns = width / step + 1;
+    const int rows = (to - from) / step + 1;
+    const double left = -static_cast<double>((columns - 1) * step) / 2.0;
+
+    FigurePlan plan =
+        new_plan(name,
+                 std::to_string(rows) + " rows of " + std::to_string(columns) + " photos, " +
+                     std::to_string((columns - 1) * step) + " cm wide from " +
+                     std::to_string(from) + " to " + std::to_string(from + (rows - 1) * step) +
+                     " cm, every " + std::to_string(step) + " cm, camera forward",
+                 speed);
+    int height = from;
+    for (int row = 0; row < rows; ++row)
+    {
+        height = from + row * step;
+        for (int k = 0; k < columns; ++k)
+        {
+            const int column = row % 2 == 0 ? k : columns - 1 - k;
+            plan.steps.push_back(FigureStep::move(0, left + column * step, height));
+            plan.steps.push_back(FigureStep::photo());
+        }
+    }
+    plan.steps.push_back(FigureStep::move(0, 0, height));
+    return plan;
+}
+
 } // namespace
 
 FigureStep FigureStep::move(double x_cm, double y_cm, double z_cm)
@@ -934,6 +987,11 @@ const std::vector<FigureSpec>& figure_specs()
          "take off and fly slowly forward distance (500 cm) at height (200 cm), frames (20) on "
          "the way; back to the center, land and put the frames into an MP4 at 10 fps",
          plan_hyperlapse},
+        {"scan", "scan [width] [from height] [to height] [step] [speed]",
+         "take off facing a wall and photograph it in rows: across the width (300 cm), up a step "
+         "(50 cm), back, from 100 to 300 cm; photos every step for overlap; back to the center, "
+         "land",
+         plan_scan},
     };
     return specs;
 }

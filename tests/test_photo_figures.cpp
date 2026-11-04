@@ -432,6 +432,18 @@ TEST_F(PhotoFigures, HyperlapseFliesForwardWithFrames)
     EXPECT_NE(out.str().find("hyperlapse: movie "), std::string::npos) << out.str();
 }
 
+TEST_F(PhotoFigures, ScanSnakesAcrossTheWall)
+{
+    start();
+    ASSERT_TRUE(cli->execute_line("scan 100 100 150 50")) << out.str();
+    EXPECT_EQ(commands(),
+              (std::vector<std::string>{"streamon", "takeoff", "go 0 50 20 30", "go 0 -50 0 30",
+                                        "go 0 -50 0 30", "go 0 0 50 30", "go 0 50 0 30",
+                                        "go 0 50 0 30", "go 0 -50 0 30", "land"}));
+    EXPECT_EQ(photos().size(), 6U);
+    EXPECT_EQ(height_range(), (std::pair{80, 150}));
+}
+
 TEST_F(PhotoFigures, FailedTurnLandsWhereTheDroneIs)
 {
     config.fail_commands = {"cw"};
@@ -511,6 +523,8 @@ TEST_F(FigureRefusals, BadArgumentsSendNothing)
         {"polygon 12 50", "polygon: a side of 26 cm is too short"},
         {"star 1 2 3 4", "usage: star [radius]"},
         {"rings 150 100 120 3", "rings: rings closer than 20 cm"},
+        {"scan 40 100 300 50", "scan: step 50 cm is wider than the width 40 cm"},
+        {"scan 300 300 100", "scan: from must not be above to"},
         {"timelapse 1", "timelapse interval (s) must be 2..60, got 1"},
         {"hyperlapse 100 10", "hyperlapse: 11 cm between frames"},
         {"eight 100 200 30 upright",
