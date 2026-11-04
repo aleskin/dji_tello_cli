@@ -19,6 +19,9 @@ constexpr int kMaxMoveCm = 500; // go: longer on an axis is refused
 constexpr int kTowerFromCm = 100;
 constexpr int kTowerToCm = 500;
 constexpr int kTowerStepCm = 50;
+constexpr int kPullDistanceCm = 300;
+constexpr int kMaxPullDistanceCm = 1000;
+constexpr std::chrono::milliseconds kPullHold{2000}; // a still shot at both ends of a video move
 
 // Rough Tello timing for the estimate.
 constexpr double kTakeoffSeconds = 6.0;
@@ -329,6 +332,30 @@ FigurePlan plan_tower(const FigureArgs& args, const std::string& usage)
     return plan;
 }
 
+FigurePlan plan_dronie(const FigureArgs& args, const std::string& usage)
+{
+    const std::string name = "dronie";
+    const Parsed p(args, usage, {kPullDistanceCm, kFigureHeightCm, kFigureSpeed}, {});
+    const int distance = p.number(0);
+    const int height = p.number(1);
+    const int speed = p.number(2);
+    check_range(name, "distance (cm)", distance, kMinFigureRadiusCm, kMaxPullDistanceCm);
+    check_range(name, "height (cm)", height, kMinFigureHeightCm, kMaxFigureHeightCm);
+    check_speed(name, speed);
+
+    FigurePlan plan = new_plan(name,
+                               "camera on you, away " + std::to_string(distance) +
+                                   " cm and up to " + std::to_string(height) + " cm",
+                               speed);
+    plan.video = true;
+    plan.steps.push_back(FigureStep::face(180));
+    plan.steps.push_back(FigureStep::wait(kPullHold));
+    plan.steps.push_back(FigureStep::move(distance, 0, height));
+    plan.steps.push_back(FigureStep::wait(kPullHold));
+    plan.steps.push_back(FigureStep::move(0, 0, height));
+    return plan;
+}
+
 } // namespace
 
 FigureStep FigureStep::move(double x_cm, double y_cm, double z_cm)
@@ -405,6 +432,10 @@ const std::vector<FigureSpec>& figure_specs()
          "take off and climb straight up from (100 cm) to (500 cm), a photo every step (50 cm), "
          "camera forward; land",
          plan_tower},
+        {"dronie", "dronie [distance] [height] [speed]",
+         "take off, turn the camera on you and fly away (300 cm) and up (200 cm) in one line "
+         "with video; back to the center and land",
+         plan_dronie},
     };
     return specs;
 }

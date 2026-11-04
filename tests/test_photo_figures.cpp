@@ -91,6 +91,10 @@ protected:
         std::vector<std::string> names;
         for (const auto& folder : std::filesystem::directory_iterator(dir))
         {
+            if (!folder.is_directory())
+            {
+                continue; // a recording
+            }
             for (const auto& file : std::filesystem::directory_iterator(folder.path()))
             {
                 if (file.file_size() > 0)
@@ -251,6 +255,19 @@ TEST_F(PhotoFigures, TowerClimbsWithPhotos)
         << out.str();
 }
 
+TEST_F(PhotoFigures, DronieFliesAwayFilmingThePilot)
+{
+    start(true);
+    ASSERT_TRUE(cli->execute_line("dronie 400 250 50")) << out.str();
+    EXPECT_EQ(commands(), (std::vector<std::string>{"streamon", "takeoff", "cw 180",
+                                                    "go -400 0 170 50", "go 400 0 0 50", "land"}));
+    EXPECT_TRUE(photos().empty());
+    EXPECT_NE(out.str().find("dronie: camera on you, away 400 cm and up to 250 cm, video"),
+              std::string::npos)
+        << out.str();
+    EXPECT_NE(out.str().find("dronie: saved "), std::string::npos) << out.str();
+}
+
 TEST_F(PhotoFigures, FailedTurnLandsWhereTheDroneIs)
 {
     config.fail_commands = {"cw"};
@@ -317,6 +334,7 @@ TEST_F(FigureRefusals, BadArgumentsSendNothing)
         {"panorama 200 30 in", "usage: panorama [height] [step] [cw|ccw]"},
         {"tower 300 200", "tower: from must be below to, got 300 and 200"},
         {"tower 100 500 10", "tower step (cm) must be 20..500, got 10"},
+        {"dronie 2000", "dronie distance (cm) must be 50..1000, got 2000"},
     };
     for (const auto& [line, error] : cases)
     {
