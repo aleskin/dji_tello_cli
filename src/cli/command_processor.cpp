@@ -7,6 +7,7 @@
 #include <array>
 #include <charconv>
 #include <cmath>
+#include <ctime>
 #include <fstream>
 #include <numbers>
 #include <stdexcept>
@@ -425,6 +426,40 @@ void CommandProcessor::register_commands()
         [this](const Args& a)
         {
             orbit(a);
+        });
+    add({"flower",
+         {},
+         C::Mission,
+         "flower [height] [radius] [step] [in|out] [cw|ccw] [speed]",
+         "take off, circle the takeoff point at height (200 cm), radius (100 cm), a photo every "
+         "step degrees (30), camera in to the center or out; back to the center and land",
+         Capability::Position},
+        [this](const Args& a)
+        {
+            figure(Figure::Flower, a);
+        });
+    add({"wheel",
+         {},
+         C::Mission,
+         "wheel [height] [radius] [step] [cw|ccw] [in|out] [speed]",
+         "take off, vertical circle across your view around the point height cm above the "
+         "takeoff (from the top, cw: right first), photos every step degrees, camera in to you "
+         "or out; back to the center and land",
+         Capability::Position},
+        [this](const Args& a)
+        {
+            figure(Figure::Wheel, a);
+        });
+    add({"loop",
+         {},
+         C::Mission,
+         "loop [height] [radius] [step] [away|toward] [in|out|side] [speed]",
+         "like wheel, but the circle goes away from you and back (from the top: away first); "
+         "camera in (to you), out (forward) or side (right)",
+         Capability::Position},
+        [this](const Args& a)
+        {
+            figure(Figure::Loop, a);
         });
 
     // Missions.
@@ -1618,6 +1653,252 @@ void CommandProcessor::orbit(const Args& args)
     const auto end = position_->position();
     out_ << "orbit: done, " << std::lround(std::hypot(end.x_cm - start.x_cm, end.y_cm - start.y_cm))
          << " cm from the start ±" << std::lround(end.error_cm) << " cm\n";
+}
+
+namespace
+{
+
+constexpr int kMinFigureStepDeg = 10;
+constexpr int kMaxFigureStepDeg = 120;
+
+// "2026-11-04_10-15-03": the folder name for the photos of one figure.
+std::string local_timestamp()
+{
+    const std::time_t now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+    std::tm local{};
+    localtime_r(&now, &local);
+    std::array<char, 32> text{};
+    const std::size_t n = std::strftime(text.data(), text.size(), "%Y-%m-%d_%H-%M-%S", &local);
+    return {text.data(), n};
+}
+
+} // namespace
+
+bool CommandProcessor::fly_to(double x_cm, double y_cm, double z_cm, int speed)
+{
+    const auto now = position_->position();
+    const double h = now.heading_deg * kDegree;
+    const double dx = x_cm - now.x_cm;
+    const double dy = y_cm - now.y_cm;
+    const double forward = dx * std::cos(h) + dy * std::sin(h);
+    const double left = dx * std::sin(h) - dy * std::cos(h);
+    const double up = z_cm - now.z_cm;
+    const double longest = std::max({std::abs(forward), std::abs(left), std::abs(up)});
+    if (std::lround(longest) < kMinMoveCm)
+    {
+        return true; // closer than the drone can step
+    }
+    const int parts = static_cast<int>(std::ceil(longest / kMaxMoveCm));
+    std::string chain;
+    for (int i = 1; i <= parts; ++i)
+    {
+        // Rounded cumulatively, so the parts add up to the whole move.
+        auto part = [i, parts](double whole)
+        {
+            return std::to_string(std::lround(whole * i / parts) -
+                                  std::lround(whole * (i - 1) / parts));
+        };
+        chain += "go " + part(forward) + ' ' + part(left) + ' ' + part(up) + ' ' +
+                 std::to_string(speed) + "; ";
+    }
+    return run_chain(chain) == Outcome::Done;
+}
+
+bool CommandProcessor::face(double heading_deg)
+{
+    const std::string command = turn(heading_deg - position_->position().heading_deg);
+    return command.empty() || run_chain(command) == Outcome::Done;
+}
+
+void CommandProcessor::figure(Figure kind, const Args& args)
+{
+    const std::string name = kind == Figure::Flower  ? "flower"
+                             : kind == Figure::Wheel ? "wheel"
+                                                     : "loop";
+    const std::string usage = find(name)->info.usage;
+    std::array<int, 4> numbers{kFigureHeightCm, kFigureRadiusCm, kFigureStepDeg, kOrbitSpeed};
+    std::size_t given = 0;
+    double sign = 1.0; // cw, or away for the loop
+    std::string camera = "in";
+    for (const auto arg : args)
+    {
+        if (!arg.empty() && (arg[0] == '-' || (arg[0] >= '0' && arg[0] <= '9')))
+        {
+            if (given == numbers.size())
+            {
+                throw UsageError("usage: " + usage);
+            }
+            numbers.at(given++) = int_arg(usage, arg);
+        }
+        else if (kind != Figure::Loop && (arg == "cw" || arg == "ccw"))
+        {
+            sign = arg == "cw" ? 1.0 : -1.0;
+        }
+        else if (kind == Figure::Loop && (arg == "away" || arg == "toward"))
+        {
+            sign = arg == "away" ? 1.0 : -1.0;
+        }
+        else if (arg == "in" || arg == "out" || (kind == Figure::Loop && arg == "side"))
+        {
+            camera = arg;
+        }
+        else
+        {
+            throw UsageError("usage: " + usage);
+        }
+    }
+    const auto [height, radius, step, speed] = numbers;
+    auto range = [&name](const std::string& what, int value, int low, int high)
+    {
+        if (value < low || value > high)
+        {
+            throw UsageError(name + " " + what + " must be " + std::to_string(low) + ".." +
+                             std::to_string(high) + ", got " + std::to_string(value));
+        }
+    };
+    range("height (cm)", height, kMinFigureHeightCm, kMaxFigureHeightCm);
+    range("radius (cm)", radius, kMinOrbitCm, kMaxOrbitCm);
+    range("step (degrees)", step, kMinFigureStepDeg, kMaxFigureStepDeg);
+    range("speed", speed, kMinOrbitSpeed, kMaxOrbitSpeed);
+    if (360 % step != 0)
+    {
+        throw UsageError(name + " step must divide 360, got " + std::to_string(step));
+    }
+    const double leg = 2.0 * radius * std::sin(step * kDegree / 2.0);
+    if (leg < kMinFigureLegCm)
+    {
+        throw UsageError(name + ": " + std::to_string(step) + " degrees of a " +
+                         std::to_string(radius) + " cm circle is a " +
+                         std::to_string(std::lround(leg)) + " cm leg, the drone needs " +
+                         std::to_string(kMinFigureLegCm) + ": take a larger step or radius");
+    }
+    if (kind != Figure::Flower && height - radius < kMinFigureGroundCm)
+    {
+        throw UsageError(name + ": the lowest point (height - radius) must be at least " +
+                         std::to_string(kMinFigureGroundCm) + " cm, got " +
+                         std::to_string(height - radius));
+    }
+    if (kind != Figure::Flower && height + radius > kMaxFigureHeightCm)
+    {
+        throw UsageError(name + ": the highest point (height + radius) must be at most " +
+                         std::to_string(kMaxFigureHeightCm) + " cm, got " +
+                         std::to_string(height + radius));
+    }
+    if (airborne_)
+    {
+        throw UsageError(name + ": land first, the figure starts with a takeoff");
+    }
+    if (!drone_.supports(Capability::Video))
+    {
+        throw UsageError(name + ": needs the camera");
+    }
+
+    // The camera first: no picture, no takeoff.
+    ensure_stream();
+    if (!video_->wait_for_frame(std::chrono::seconds(5)))
+    {
+        throw UsageError(name + ": no picture from the camera, not taking off");
+    }
+    const std::filesystem::path base = session_.photo_dir / (name + '_' + local_timestamp());
+    std::filesystem::path dir = base;
+    for (int n = 2; std::filesystem::exists(dir); ++n)
+    {
+        dir = base.string() + '_' + std::to_string(n);
+    }
+    try
+    {
+        std::filesystem::create_directories(dir);
+    }
+    catch (const std::filesystem::filesystem_error& e)
+    {
+        throw UsageError(name + ": " + e.what());
+    }
+    const int count = 360 / step;
+    out_ << name << ": height " << height << " cm, radius " << radius << " cm, " << count
+         << " photos every " << step << " degrees, camera " << camera << " -> " << dir.string()
+         << '\n'
+         << std::flush;
+
+    auto stop = [this, &name](const std::string& what)
+    {
+        if (airborne_ && !in_mission_)
+        {
+            out_ << name << ": landing\n";
+            execute("land");
+        }
+        throw UsageError(name + ": " + what);
+    };
+    if (!execute("takeoff"))
+    {
+        stop("takeoff failed");
+    }
+    const auto origin = position_->position();
+    const double h0 = origin.heading_deg; // the pilot looks this way from behind the takeoff point
+    auto point = [&](int k) -> std::array<double, 3>
+    {
+        const double angle = sign * step * k;
+        if (kind == Figure::Flower)
+        {
+            const double bearing = (h0 + angle) * kDegree;
+            return {origin.x_cm + radius * std::cos(bearing),
+                    origin.y_cm + radius * std::sin(bearing), static_cast<double>(height)};
+        }
+        // From the top of the circle; the wheel swings to the pilot's right, the loop forward.
+        const double axis = (h0 + (kind == Figure::Wheel ? 90.0 : 0.0)) * kDegree;
+        const double t = angle * kDegree;
+        return {origin.x_cm + radius * std::sin(t) * std::cos(axis),
+                origin.y_cm + radius * std::sin(t) * std::sin(axis), height + radius * std::cos(t)};
+    };
+    auto camera_heading = [&](int k)
+    {
+        if (kind == Figure::Flower)
+        {
+            return h0 + sign * step * k + (camera == "in" ? 180.0 : 0.0);
+        }
+        if (camera == "side")
+        {
+            return h0 + 90.0;
+        }
+        return h0 + (camera == "in" ? 180.0 : 0.0);
+    };
+    auto go = [this, speed](const std::array<double, 3>& p)
+    {
+        return fly_to(p[0], p[1], p[2], speed);
+    };
+
+    int saved = 0;
+    for (int k = 0; k < count; ++k)
+    {
+        const bool there =
+            k == 0 ? fly_to(origin.x_cm, origin.y_cm, height, speed) && go(point(0)) : go(point(k));
+        if (!there || !face(camera_heading(k)))
+        {
+            stop(k == 0
+                     ? "stopped on the way to the circle"
+                     : "stopped after photo " + std::to_string(k) + " of " + std::to_string(count));
+        }
+        sleep_(kPhotoSettle);
+        std::string file = std::to_string(k + 1);
+        file.insert(0, 2 - std::min<std::size_t>(file.size(), 2), '0');
+        try
+        {
+            video_->save_photo(dir / (file + ".jpg"));
+            ++saved;
+        }
+        catch (const std::runtime_error& e)
+        {
+            out_ << name << ": photo " << k + 1 << " failed: " << e.what() << '\n';
+        }
+    }
+    if (!go(point(count)) || !fly_to(origin.x_cm, origin.y_cm, height, speed))
+    {
+        stop("stopped on the way back to the center");
+    }
+    if (!execute("land"))
+    {
+        throw UsageError(name + ": land failed");
+    }
+    out_ << name << ": done, " << saved << " of " << count << " photos in " << dir.string() << '\n';
 }
 
 void CommandProcessor::return_home()

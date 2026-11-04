@@ -103,6 +103,16 @@ constexpr int kMaxOrbitCm = 500;
 constexpr int kMinOrbitSpeed = 10;
 constexpr int kMaxOrbitSpeed = 100;
 constexpr int kDefaultDeadzone = 10;
+// flower/wheel/loop defaults: center height, radius, photo step.
+constexpr int kFigureHeightCm = 200;
+constexpr int kFigureRadiusCm = 100;
+constexpr int kFigureStepDeg = 30;
+constexpr int kMinFigureHeightCm = 50;
+constexpr int kMaxFigureHeightCm = 1000; // the highest point of a figure
+constexpr int kMinFigureGroundCm = 50;   // the lowest point of a wheel or loop
+constexpr int kMinFigureLegCm = 30;      // one step of the circle; go needs 20 cm on an axis
+// Hover before a photo: a steady, fresh picture.
+constexpr std::chrono::milliseconds kPhotoSettle{1000};
 constexpr std::chrono::milliseconds kKeyboardPeriod{50}; // rc at 20 Hz
 
 // Interactive command layer. Knows only DroneBase: which model sits behind it decides what works.
@@ -224,6 +234,15 @@ private:
     void return_home();
     void face_point(const Args& args, bool away);
     void orbit(const Args& args);
+    enum class Figure
+    {
+        Flower, // horizontal circle around the takeoff point
+        Wheel,  // vertical circle across the pilot's view
+        Loop    // vertical circle along the pilot's view
+    };
+    void figure(Figure kind, const Args& args);
+    bool fly_to(double x_cm, double y_cm, double z_cm, int speed); // false: the chain failed
+    bool face(double heading_deg);
     [[nodiscard]] video::Osd osd() const;
 
     drone::DroneBase& drone_;

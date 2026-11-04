@@ -99,8 +99,8 @@ TEST_F(AliasCli, AliasCanCallAliasButNotLoopForever)
     cli.execute_line("a2 30");
     EXPECT_EQ(mock->requests, (std::vector<std::string>{"up 30", "up 30"}));
 
-    cli.execute_line("alias loop loop");
-    cli.execute_line("loop; land");
+    cli.execute_line("alias spin spin");
+    cli.execute_line("spin; land");
     EXPECT_NE(out.str().find("too deep"), std::string::npos);
     EXPECT_EQ(mock->requests.size(), 2U);
 }
