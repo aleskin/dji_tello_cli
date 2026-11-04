@@ -1,6 +1,7 @@
 // flower / wheel / loop: takeoff, a circle with photos, back to the center, land.
 
 #include "cli/command_processor.hpp"
+#include "drone/dead_reckoning.hpp"
 #include "mock_transport.hpp"
 #include "simulator.hpp"
 #include "tello/tello_family.hpp"
@@ -231,7 +232,7 @@ TEST_F(PhotoFigures, FailedTurnLandsWhereTheDroneIs)
     EXPECT_FALSE(sim->model().flying);
     EXPECT_FALSE(cli->airborne());
     EXPECT_NE(out.str().find("flower: landing"), std::string::npos) << out.str();
-    EXPECT_NE(out.str().find("flower: stopped on the way to the circle"), std::string::npos)
+    EXPECT_NE(out.str().find("flower: stopped before the first photo"), std::string::npos)
         << out.str();
     EXPECT_TRUE(photos().empty());
 }
@@ -280,6 +281,78 @@ TEST_F(FigureRefusals, StartsOnTheGroundOnly)
               std::string::npos)
         << out.str();
     EXPECT_TRUE(mock->requests.empty());
+}
+
+} // namespace
+
+namespace
+{
+
+class FigureDryRun : public ::testing::Test
+{
+protected:
+    std::shared_ptr<tello::test::MockTransport> mock =
+        std::make_shared<tello::test::MockTransport>();
+    tello::TelloClassic drone{mock};
+    std::ostringstream out;
+    cli::CommandProcessor cli{drone, out, {"127.0.0.1", 8889, 0, {}, {}}};
+};
+
+TEST_F(FigureDryRun, PrintsTheFlightAndSendsNothing)
+{
+    cli.execute_line("flower dry");
+    const std::string text = out.str();
+    EXPECT_TRUE(mock->requests.empty());
+    EXPECT_NE(text.find("flower (dry run, nothing is sent): height 200 cm, radius 100 cm, 12 "
+                        "photos every 30 degrees, camera in\n"
+                        "  takeoff\n"
+                        "  go 0 0 120 30\n"
+                        "  go 100 0 0 30\n"
+                        "  cw 180\n"
+                        "  photo 01\n"
+                        "  go 13 50 0 30\n"
+                        "  cw 30\n"
+                        "  photo 02\n"),
+              std::string::npos)
+        << text;
+    EXPECT_NE(text.find("  photo 12\n  go 13 50 0 30\n  go 87 -50 0 30\n  land\n"),
+              std::string::npos)
+        << text;
+    EXPECT_NE(text.find("flower: 29 commands, 12 photos, about "), std::string::npos) << text;
+    EXPECT_NE(text.find(" highest 200 cm, about "), std::string::npos) << text;
+    EXPECT_NE(text.find(" % battery\n"), std::string::npos) << text;
+}
+
+TEST_F(FigureDryRun, WorksInTheAirAndChecksArguments)
+{
+    cli.execute_line("takeoff");
+    mock->requests.clear();
+    cli.execute_line("wheel 250 150 dry");
+    EXPECT_TRUE(mock->requests.empty());
+    EXPECT_NE(out.str().find("highest 400 cm"), std::string::npos) << out.str();
+    out.str("");
+    cli.execute_line("wheel 100 100 dry");
+    EXPECT_NE(out.str().find("wheel: the lowest point"), std::string::npos) << out.str();
+    EXPECT_EQ(out.str().find("dry run"), std::string::npos) << out.str();
+}
+
+TEST(FigureEstimate, CountsTimeDistanceAndBattery)
+{
+    cli::FigurePlan plan;
+    plan.name = "test";
+    plan.speed = 50;
+    plan.steps = {cli::FigureStep::move(0, 0, 180), cli::FigureStep::move(500, 0, 180),
+                  cli::FigureStep::wait(milliseconds(4000)), cli::FigureStep::move(0, 0, 180)};
+    drone::DeadReckoning paper(80);
+    const auto e = cli::estimate(plan, paper);
+    EXPECT_EQ(e.lines, (std::vector<std::string>{"takeoff", "go 0 0 100 50", "go 500 0 0 50",
+                                                 "wait 4000 ms", "go -500 0 0 50", "land"}));
+    EXPECT_EQ(e.commands, 5);
+    EXPECT_DOUBLE_EQ(e.highest_cm, 180.0);
+    EXPECT_NEAR(e.distance_cm, 1100.0, 1e-6); // takeoff and land are not counted
+    // 6 takeoff + 5 land + 3 x (1 + flight) + 4 wait = 18 + 1100 / 50 = 40 s.
+    EXPECT_EQ(e.duration.count(), 40);
+    EXPECT_EQ(e.battery_percent, 6); // 40 s of 13 min
 }
 
 } // namespace
