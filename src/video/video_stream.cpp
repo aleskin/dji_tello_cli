@@ -11,13 +11,16 @@ extern "C"
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <ctime>
 #include <fstream>
+#include <iterator>
 #include <memory>
 #include <stdexcept>
 #include <system_error>
 #include <utility>
+#include <vector>
 
 namespace video
 {
@@ -38,6 +41,39 @@ struct PacketDeleter
         av_packet_free(&p);
     }
 };
+
+std::vector<std::uint8_t> read_file(const std::filesystem::path& path)
+{
+    std::ifstream in(path, std::ios::binary);
+    std::vector<std::uint8_t> data((std::istreambuf_iterator<char>(in)),
+                                   std::istreambuf_iterator<char>());
+    if (!in.is_open() || data.empty())
+    {
+        throw std::runtime_error("movie: cannot read " + path.string());
+    }
+    return data;
+}
+
+// Width and height from the SOF segment of a JPEG.
+std::pair<int, int> jpeg_size(const std::vector<std::uint8_t>& jpeg)
+{
+    std::size_t i = 2; // after SOI
+    while (i + 9 < jpeg.size() && jpeg[i] == 0xFF)
+    {
+        const std::uint8_t marker = jpeg[i + 1];
+        const std::size_t length = (static_cast<std::size_t>(jpeg[i + 2]) << 8U) | jpeg[i + 3];
+        if (marker >= 0xC0 && marker <= 0xC3)
+        {
+            const auto height =
+                static_cast<int>((static_cast<unsigned>(jpeg[i + 5]) << 8U) | jpeg[i + 6]);
+            const auto width =
+                static_cast<int>((static_cast<unsigned>(jpeg[i + 7]) << 8U) | jpeg[i + 8]);
+            return {width, height};
+        }
+        i += 2 + length;
+    }
+    throw std::runtime_error("movie: not a JPEG picture");
+}
 
 } // namespace
 
@@ -454,6 +490,100 @@ void VideoStream::save_photo(const std::filesystem::path& path) const
     if (!file)
     {
         throw std::runtime_error("photo: cannot write " + path.string());
+    }
+}
+
+void make_movie(const std::vector<std::filesystem::path>& frames, const std::filesystem::path& path,
+                int fps)
+{
+    struct Muxer
+    {
+        AVFormatContext* context = nullptr;
+        bool header_written = false;
+
+        Muxer() = default;
+        Muxer(const Muxer&) = delete;
+        Muxer& operator=(const Muxer&) = delete;
+        Muxer(Muxer&&) = delete;
+        Muxer& operator=(Muxer&&) = delete;
+        ~Muxer()
+        {
+            if (context == nullptr)
+            {
+                return;
+            }
+            if (header_written)
+            {
+                av_write_trailer(context);
+            }
+            avio_closep(&context->pb);
+            avformat_free_context(context);
+        }
+    };
+
+    if (frames.empty())
+    {
+        throw std::runtime_error("movie: no frames");
+    }
+    const auto first = read_file(frames.front());
+    const auto [width, height] = jpeg_size(first);
+    const std::string name = path.string();
+    Muxer mux;
+    int rc = avformat_alloc_output_context2(&mux.context, nullptr, "mp4", name.c_str());
+    if (rc < 0 || mux.context == nullptr)
+    {
+        throw std::runtime_error("movie: cannot create " + name + ": " + av_error(rc));
+    }
+    AVStream* st = avformat_new_stream(mux.context, nullptr);
+    if (st == nullptr)
+    {
+        throw std::runtime_error("movie: cannot set up the MP4 stream");
+    }
+    st->codecpar->codec_type = AVMEDIA_TYPE_VIDEO;
+    st->codecpar->codec_id = AV_CODEC_ID_MJPEG;
+    st->codecpar->width = width;
+    st->codecpar->height = height;
+    st->time_base = AVRational{1, fps};
+    rc = avio_open(&mux.context->pb, name.c_str(), AVIO_FLAG_WRITE);
+    if (rc < 0)
+    {
+        throw std::runtime_error("movie: cannot open " + name + ": " + av_error(rc));
+    }
+    rc = avformat_write_header(mux.context, nullptr);
+    if (rc < 0)
+    {
+        throw std::runtime_error("movie: cannot write the MP4 header: " + av_error(rc));
+    }
+    mux.header_written = true;
+    std::unique_ptr<AVPacket, PacketDeleter> packet(av_packet_alloc());
+    if (!packet)
+    {
+        throw std::runtime_error("movie: out of memory");
+    }
+    for (std::size_t i = 0; i < frames.size(); ++i)
+    {
+        const auto jpeg = i == 0 ? first : read_file(frames[i]);
+        if (jpeg_size(jpeg) != std::pair{width, height})
+        {
+            throw std::runtime_error("movie: " + frames[i].string() + " has another size");
+        }
+        if (av_new_packet(packet.get(), static_cast<int>(jpeg.size())) < 0)
+        {
+            throw std::runtime_error("movie: out of memory");
+        }
+        std::ranges::copy(jpeg, packet->data);
+        packet->stream_index = st->index;
+        packet->pts = av_rescale_q(static_cast<std::int64_t>(i), AVRational{1, fps}, st->time_base);
+        packet->dts = packet->pts;
+        packet->duration = av_rescale_q(1, AVRational{1, fps}, st->time_base);
+        packet->flags = static_cast<int>(static_cast<unsigned>(packet->flags) |
+                                         static_cast<unsigned>(AV_PKT_FLAG_KEY));
+        rc = av_interleaved_write_frame(mux.context, packet.get());
+        av_packet_unref(packet.get());
+        if (rc < 0)
+        {
+            throw std::runtime_error("movie: cannot write a frame: " + av_error(rc));
+        }
     }
 }
 

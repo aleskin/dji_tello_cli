@@ -97,4 +97,9 @@ private:
 // dir/tello_YYYY-MM-DD_HH-MM-SS_mmm.jpg: milliseconds, so photos in one second do not collide.
 [[nodiscard]] std::filesystem::path default_photo_path(const std::filesystem::path& dir);
 
+// JPEG frames (all of one size) into an MP4 movie at fps frames per second, without re-encoding.
+// Throws std::runtime_error.
+void make_movie(const std::vector<std::filesystem::path>& frames, const std::filesystem::path& path,
+                int fps);
+
 } // namespace video

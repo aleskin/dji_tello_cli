@@ -1805,6 +1805,7 @@ void CommandProcessor::run_figure(const FigureSpec& spec, const Args& args)
     }
     int taken = 0;
     int saved = 0;
+    std::vector<std::filesystem::path> frames;
     for (const auto& step : plan.steps)
     {
         if (step.kind == FigureStep::Kind::Photo)
@@ -1813,7 +1814,9 @@ void CommandProcessor::run_figure(const FigureSpec& spec, const Args& args)
             ++taken;
             try
             {
-                video_->save_photo(dir / (two_digits(taken) + ".jpg"));
+                const auto file = dir / (two_digits(taken) + ".jpg");
+                video_->save_photo(file);
+                frames.push_back(file);
                 ++saved;
             }
             catch (const std::runtime_error& e)
@@ -1847,6 +1850,19 @@ void CommandProcessor::run_figure(const FigureSpec& spec, const Args& args)
         throw UsageError(name + ": land failed");
     }
     finish_video();
+    if (plan.movie_fps > 0 && frames.size() >= 2)
+    {
+        const auto movie = dir / (name + ".mp4");
+        try
+        {
+            video::make_movie(frames, movie, plan.movie_fps);
+            out_ << name << ": movie " << movie.string() << '\n';
+        }
+        catch (const std::runtime_error& e)
+        {
+            out_ << name << ": " << e.what() << '\n';
+        }
+    }
     out_ << name << ": done";
     if (photos > 0)
     {

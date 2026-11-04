@@ -8,6 +8,11 @@
 #include "tello/udp_socket.hpp"
 #include "tello/udp_transport.hpp"
 
+extern "C"
+{
+#include <libavformat/avformat.h>
+}
+
 #include <gtest/gtest.h>
 
 #include <algorithm>
@@ -396,6 +401,37 @@ TEST_F(PhotoFigures, RingsAtSeveralHeights)
         << out.str();
 }
 
+TEST_F(PhotoFigures, TimelapseMakesAMovie)
+{
+    start();
+    ASSERT_TRUE(cli->execute_line("timelapse 2 5")) << out.str();
+    EXPECT_EQ(commands(),
+              (std::vector<std::string>{"streamon", "takeoff", "go 0 0 120 30", "land"}));
+    const auto p = photos();
+    ASSERT_EQ(p.size(), 6U); // 5 frames and the movie
+    EXPECT_TRUE(p.back().ends_with("/timelapse.mp4")) << p.back();
+    EXPECT_NE(out.str().find("timelapse: movie "), std::string::npos) << out.str();
+
+    AVFormatContext* movie = nullptr;
+    const auto file = dir / p.back();
+    ASSERT_EQ(avformat_open_input(&movie, file.c_str(), nullptr, nullptr), 0);
+    ASSERT_GE(avformat_find_stream_info(movie, nullptr), 0);
+    EXPECT_EQ(movie->streams[0]->nb_frames, 5);
+    EXPECT_EQ(movie->streams[0]->codecpar->width, 960);
+    avformat_close_input(&movie);
+}
+
+TEST_F(PhotoFigures, HyperlapseFliesForwardWithFrames)
+{
+    start();
+    ASSERT_TRUE(cli->execute_line("hyperlapse 200 3")) << out.str();
+    EXPECT_EQ(commands(),
+              (std::vector<std::string>{"streamon", "takeoff", "go 0 0 120 20", "go 100 0 0 20",
+                                        "go 100 0 0 20", "go -200 0 0 20", "land"}));
+    EXPECT_EQ(photos().size(), 4U);
+    EXPECT_NE(out.str().find("hyperlapse: movie "), std::string::npos) << out.str();
+}
+
 TEST_F(PhotoFigures, FailedTurnLandsWhereTheDroneIs)
 {
     config.fail_commands = {"cw"};
@@ -475,6 +511,8 @@ TEST_F(FigureRefusals, BadArgumentsSendNothing)
         {"polygon 12 50", "polygon: a side of 26 cm is too short"},
         {"star 1 2 3 4", "usage: star [radius]"},
         {"rings 150 100 120 3", "rings: rings closer than 20 cm"},
+        {"timelapse 1", "timelapse interval (s) must be 2..60, got 1"},
+        {"hyperlapse 100 10", "hyperlapse: 11 cm between frames"},
         {"eight 100 200 30 upright",
          "eight: the lowest point (height - radius) must be at least 50 cm, got 0"},
     };

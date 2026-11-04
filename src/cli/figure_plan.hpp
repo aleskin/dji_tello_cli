@@ -71,6 +71,7 @@ struct FigurePlan
     int speed = kFigureSpeed;
     int min_battery = 0; // percent needed before the takeoff
     bool video = false;  // record the camera from the takeoff to the landing
+    int movie_fps = 0;   // > 0: the photos are put together into an MP4 after the landing
     std::vector<FigureStep> steps;
 
     [[nodiscard]] int photos() const;

@@ -45,6 +45,14 @@ constexpr int kStarPoints = 5;
 constexpr int kRingsRadiusCm = 150;
 constexpr int kRings = 3;
 constexpr int kMaxRings = 10;
+constexpr int kTimelapseIntervalS = 2;
+constexpr int kMinTimelapseIntervalS = 2; // the photo settle takes one
+constexpr int kMaxTimelapseIntervalS = 60;
+constexpr int kTimelapseFrames = 30;
+constexpr int kMaxTimelapseFrames = 300;
+constexpr int kHyperlapseFrames = 20;
+constexpr int kHyperlapseSpeed = 20;
+constexpr int kMovieFps = 10;
 constexpr std::chrono::milliseconds kPullHold{2000}; // a still shot at both ends of a video move
 
 // Rough Tello timing for the estimate.
@@ -732,6 +740,72 @@ FigurePlan plan_rings(const FigureArgs& args, const std::string& usage)
     return plan;
 }
 
+FigurePlan plan_timelapse(const FigureArgs& args, const std::string& usage)
+{
+    const std::string name = "timelapse";
+    const Parsed p(args, usage, {kTimelapseIntervalS, kTimelapseFrames, kFigureHeightCm}, {});
+    const int interval = p.number(0);
+    const int frames = p.number(1);
+    const int height = p.number(2);
+    check_range(name, "interval (s)", interval, kMinTimelapseIntervalS, kMaxTimelapseIntervalS);
+    check_range(name, "frames", frames, 2, kMaxTimelapseFrames);
+    check_range(name, "height (cm)", height, kMinFigureHeightCm, kMaxFigureHeightCm);
+
+    FigurePlan plan =
+        new_plan(name,
+                 std::to_string(frames) + " frames every " + std::to_string(interval) + " s at " +
+                     std::to_string(height) + " cm, camera forward, a movie at " +
+                     std::to_string(kMovieFps) + " fps",
+                 kFigureSpeed);
+    plan.movie_fps = kMovieFps;
+    plan.steps.push_back(FigureStep::move(0, 0, height));
+    for (int k = 0; k < frames; ++k)
+    {
+        if (k > 0)
+        {
+            plan.steps.push_back(FigureStep::wait(std::chrono::seconds(interval) - kPhotoSettle));
+        }
+        plan.steps.push_back(FigureStep::photo());
+    }
+    return plan;
+}
+
+FigurePlan plan_hyperlapse(const FigureArgs& args, const std::string& usage)
+{
+    const std::string name = "hyperlapse";
+    const Parsed p(args, usage,
+                   {kPullDistanceCm + 200, kHyperlapseFrames, kFigureHeightCm, kHyperlapseSpeed},
+                   {});
+    const int distance = p.number(0);
+    const int frames = p.number(1);
+    const int height = p.number(2);
+    const int speed = p.number(3);
+    check_range(name, "distance (cm)", distance, kMinFigureRadiusCm, kMaxPullDistanceCm);
+    check_range(name, "frames", frames, 2, kMaxTimelapseFrames);
+    check_range(name, "height (cm)", height, kMinFigureHeightCm, kMaxFigureHeightCm);
+    check_speed(name, speed);
+    const double step = static_cast<double>(distance) / (frames - 1);
+    if (step < kMinMoveCm)
+    {
+        throw FigureError(name + ": " + str(step) + " cm between frames, the drone needs " +
+                          std::to_string(kMinMoveCm) + ": take fewer frames or a longer distance");
+    }
+
+    FigurePlan plan = new_plan(name,
+                               std::to_string(frames) + " frames over " + std::to_string(distance) +
+                                   " cm forward at " + std::to_string(height) + " cm, a movie at " +
+                                   std::to_string(kMovieFps) + " fps",
+                               speed);
+    plan.movie_fps = kMovieFps;
+    for (int k = 0; k < frames; ++k)
+    {
+        plan.steps.push_back(FigureStep::move(step * k, 0, height));
+        plan.steps.push_back(FigureStep::photo());
+    }
+    plan.steps.push_back(FigureStep::move(0, 0, height));
+    return plan;
+}
+
 } // namespace
 
 FigureStep FigureStep::move(double x_cm, double y_cm, double z_cm)
@@ -852,6 +926,14 @@ const std::vector<FigureSpec>& figure_specs()
          "300 cm, camera in, a photo every step degrees (30), all in one folder for a 3D model "
          "(Meshroom); back to the center and land",
          plan_rings},
+        {"timelapse", "timelapse [interval] [frames] [height]",
+         "take off, hover at height (200 cm) and take frames (30) every interval seconds (2), "
+         "camera forward; land and put the frames into an MP4 at 10 fps",
+         plan_timelapse},
+        {"hyperlapse", "hyperlapse [distance] [frames] [height] [speed]",
+         "take off and fly slowly forward distance (500 cm) at height (200 cm), frames (20) on "
+         "the way; back to the center, land and put the frames into an MP4 at 10 fps",
+         plan_hyperlapse},
     };
     return specs;
 }
