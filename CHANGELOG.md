@@ -5,6 +5,13 @@ Format: `## [version] — YYYY-MM-DD` followed by grouped changes. Written by `m
 
 ---
 
+## [0.0.6] — 2026-11-04
+
+### Added
+- **[TEL-00037]** **[TEL-00038]** **[TEL-00039]** cli: add flower, wheel and loop photo figures
+
+---
+
 ## [0.0.5] — 2026-11-03
 
 ### Added
