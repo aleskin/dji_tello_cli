@@ -34,6 +34,11 @@ constexpr int kMaxHelixTurns = 5;
 constexpr int kHelixFromCm = 100;
 constexpr int kHelixToCm = 300;
 constexpr int kHelixToRadiusCm = 200;
+constexpr int kBoomerangLengthCm = 400;
+constexpr int kBoomerangWidthCm = 200;
+constexpr int kBoomerangRiseCm = 100;
+constexpr int kBoomerangLowCm = 100;
+constexpr int kBoomerangStepDeg = 30;
 constexpr std::chrono::milliseconds kPullHold{2000}; // a still shot at both ends of a video move
 
 // Rough Tello timing for the estimate.
@@ -522,6 +527,50 @@ FigurePlan plan_helix(const FigureArgs& args, const std::string& usage)
     return plan;
 }
 
+FigurePlan plan_boomerang(const FigureArgs& args, const std::string& usage)
+{
+    const std::string name = "boomerang";
+    const Parsed p(args, usage,
+                   {kBoomerangLengthCm, kBoomerangWidthCm, kBoomerangRiseCm, kFigureSpeed},
+                   {"cw", "ccw"});
+    const int length = p.number(0);
+    const int width = p.number(1);
+    const int rise = p.number(2);
+    const int speed = p.number(3);
+    check_range(name, "length (cm)", length, 2 * kMinFigureRadiusCm, 2 * kMaxFigureRadiusCm);
+    check_range(name, "width (cm)", width, 2 * kMinFigureRadiusCm, 2 * kMaxFigureRadiusCm);
+    check_range(name, "rise (cm)", rise, 0, kMaxFigureHeightCm - kBoomerangLowCm);
+    check_speed(name, speed);
+    const std::string_view direction = p.pick({"cw", "ccw"});
+    const double sign = direction == "cw" ? 1.0 : -1.0;
+    const int count = 360 / kBoomerangStepDeg;
+
+    FigurePlan plan = new_plan(
+        name,
+        "oval " + std::to_string(length) + " x " + std::to_string(width) + " cm " +
+            std::string(direction) + ", from " + std::to_string(kBoomerangLowCm) + " up to " +
+            std::to_string(kBoomerangLowCm + rise) + " cm at the far end, camera in",
+        speed);
+    plan.video = true;
+    // From the near end (behind the takeoff point) round the far end and back, camera on the
+    // center.
+    auto point = [&](int k)
+    {
+        const double t = kBoomerangStepDeg * k * kDegree;
+        return FigureStep::move(-length / 2.0 * std::cos(t), sign * width / 2.0 * std::sin(t),
+                                kBoomerangLowCm + rise * (1.0 - std::cos(t)) / 2.0);
+    };
+    plan.steps.push_back(FigureStep::move(0, 0, kBoomerangLowCm));
+    for (int k = 0; k <= count; ++k)
+    {
+        const FigureStep at = point(k);
+        plan.steps.push_back(at);
+        plan.steps.push_back(FigureStep::face(std::atan2(-at.y_cm, -at.x_cm) / kDegree));
+    }
+    plan.steps.push_back(FigureStep::move(0, 0, kBoomerangLowCm));
+    return plan;
+}
+
 } // namespace
 
 FigureStep FigureStep::move(double x_cm, double y_cm, double z_cm)
@@ -621,6 +670,11 @@ const std::vector<FigureSpec>& figure_specs()
          "100 to 300 cm, radius 100 to 200 cm, a leg every step degrees (30); back to the center "
          "and land",
          plan_helix},
+        {"boomerang", "boomerang [length] [width] [rise] [cw|ccw] [speed]",
+         "take off and fly an oval around the takeoff point with video, camera in: length "
+         "(400 cm) along your view, width (200 cm), rising from 100 cm by rise (100 cm) at the "
+         "far end; back to the center and land",
+         plan_boomerang},
     };
     return specs;
 }

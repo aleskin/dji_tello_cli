@@ -330,6 +330,22 @@ TEST_F(PhotoFigures, HelixClimbsAndWidens)
         << out.str();
 }
 
+TEST_F(PhotoFigures, BoomerangRisesAtTheFarEnd)
+{
+    start();
+    ASSERT_TRUE(cli->execute_line("boomerang")) << out.str();
+    const auto c = commands();
+    EXPECT_EQ(c[2], "go 0 0 20 30");   // 100 cm
+    EXPECT_EQ(c[3], "go -200 0 0 30"); // the near end, behind the takeoff point
+    EXPECT_EQ(c.back(), "land");
+    EXPECT_EQ(height_range(), (std::pair<int, int>{80, 200}));
+    EXPECT_LT(std::hypot(sim->model().x_cm, sim->model().y_cm), 3.0);
+    EXPECT_NE(out.str().find("boomerang: oval 400 x 200 cm cw, from 100 up to 200 cm at the far "
+                             "end, camera in, video"),
+              std::string::npos)
+        << out.str();
+}
+
 TEST_F(PhotoFigures, FailedTurnLandsWhereTheDroneIs)
 {
     config.fail_commands = {"cw"};
@@ -403,6 +419,7 @@ TEST_F(FigureRefusals, BadArgumentsSendNothing)
         {"flips 3", "usage: flips [l|r|f|b ...]"},
         {"helix 6", "helix turns must be 1..5, got 6"},
         {"helix 2 100 300 50 200 10", "10 degrees of a 50 cm circle"},
+        {"boomerang 400 80", "boomerang width (cm) must be 100..1000, got 80"},
     };
     for (const auto& [line, error] : cases)
     {
