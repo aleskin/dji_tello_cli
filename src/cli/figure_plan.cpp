@@ -571,6 +571,49 @@ FigurePlan plan_boomerang(const FigureArgs& args, const std::string& usage)
     return plan;
 }
 
+FigurePlan plan_eight(const FigureArgs& args, const std::string& usage)
+{
+    const std::string name = "eight";
+    const Parsed p(args, usage, {kFigureRadiusCm, kFigureHeightCm, kFigureStepDeg, kFigureSpeed},
+                   {"flat", "upright"});
+    const int radius = p.number(0);
+    const int height = p.number(1);
+    const int step = p.number(2);
+    const int speed = p.number(3);
+    check_circle(name, radius, step);
+    check_range(name, "height (cm)", height, kMinFigureHeightCm, kMaxFigureHeightCm);
+    check_speed(name, speed);
+    const bool flat = p.pick({"flat", "upright"}) == "flat";
+    if (!flat)
+    {
+        check_vertical(name, height, 2 * radius);
+    }
+    const int count = 360 / step;
+
+    FigurePlan plan = new_plan(name,
+                               std::string(flat ? "flat" : "upright") + ", two circles of " +
+                                   std::to_string(radius) + " cm through the point " +
+                                   std::to_string(height) + " cm above the takeoff",
+                               speed);
+    plan.video = true;
+    // a: forward (flat) or right (upright); b: right (flat) or up (upright).
+    auto at = [&](double a, double b)
+    {
+        return flat ? FigureStep::move(a, b, height) : FigureStep::move(0, a, height + b);
+    };
+    plan.steps.push_back(FigureStep::move(0, 0, height));
+    for (const double side : {1.0, -1.0})
+    {
+        for (int k = 1; k <= count; ++k)
+        {
+            const double t = (-90.0 + step * k) * kDegree;
+            plan.steps.push_back(at(radius * std::cos(t), side * (radius + radius * std::sin(t))));
+        }
+    }
+    plan.steps.push_back(FigureStep::move(0, 0, height));
+    return plan;
+}
+
 } // namespace
 
 FigureStep FigureStep::move(double x_cm, double y_cm, double z_cm)
@@ -675,6 +718,11 @@ const std::vector<FigureSpec>& figure_specs()
          "(400 cm) along your view, width (200 cm), rising from 100 cm by rise (100 cm) at the "
          "far end; back to the center and land",
          plan_boomerang},
+        {"eight", "eight [radius] [height] [step] [flat|upright] [speed]",
+         "take off and fly a figure eight with video through the point height (200 cm) above the "
+         "takeoff: two circles of radius (100 cm), flat (right and left) or upright (above and "
+         "below), camera forward; land",
+         plan_eight},
     };
     return specs;
 }

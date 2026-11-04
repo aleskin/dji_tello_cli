@@ -346,6 +346,21 @@ TEST_F(PhotoFigures, BoomerangRisesAtTheFarEnd)
         << out.str();
 }
 
+TEST_F(PhotoFigures, EightFlatAndUpright)
+{
+    start();
+    ASSERT_TRUE(cli->execute_line("eight 100 200 90")) << out.str();
+    EXPECT_EQ(commands(),
+              (std::vector<std::string>{"streamon", "takeoff", "go 0 0 120 30", "go 100 -100 0 30",
+                                        "go -100 -100 0 30", "go -100 100 0 30", "go 100 100 0 30",
+                                        "go 100 100 0 30", "go -100 100 0 30", "go -100 -100 0 30",
+                                        "go 100 -100 0 30", "land"}));
+    out.str("");
+    ASSERT_TRUE(cli->execute_line("eight 100 300 90 upright")) << out.str();
+    EXPECT_EQ(height_range(), (std::pair<int, int>{80, 500}));
+    EXPECT_LT(std::hypot(sim->model().x_cm, sim->model().y_cm), 3.0);
+}
+
 TEST_F(PhotoFigures, FailedTurnLandsWhereTheDroneIs)
 {
     config.fail_commands = {"cw"};
@@ -420,6 +435,8 @@ TEST_F(FigureRefusals, BadArgumentsSendNothing)
         {"helix 6", "helix turns must be 1..5, got 6"},
         {"helix 2 100 300 50 200 10", "10 degrees of a 50 cm circle"},
         {"boomerang 400 80", "boomerang width (cm) must be 100..1000, got 80"},
+        {"eight 100 200 30 upright",
+         "eight: the lowest point (height - radius) must be at least 50 cm, got 0"},
     };
     for (const auto& [line, error] : cases)
     {
