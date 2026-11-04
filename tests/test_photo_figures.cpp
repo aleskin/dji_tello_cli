@@ -378,6 +378,24 @@ TEST_F(PhotoFigures, PolygonAndStar)
         << out.str();
 }
 
+TEST_F(PhotoFigures, RingsAtSeveralHeights)
+{
+    start();
+    ASSERT_TRUE(cli->execute_line("rings 100 100 200 2 90")) << out.str();
+    const auto c = commands();
+    EXPECT_EQ(c[2], "go 0 0 20 30");
+    EXPECT_EQ(c[3], "go 100 0 0 30");
+    EXPECT_EQ(c[4], "cw 180");
+    EXPECT_NE(std::ranges::find(c, std::string("go 0 0 100 30")), c.end()); // to the next ring
+    EXPECT_EQ(c.back(), "land");
+    EXPECT_EQ(height_range(), (std::pair<int, int>{80, 200}));
+    EXPECT_EQ(photos().size(), 8U);
+    EXPECT_LT(std::hypot(sim->model().x_cm, sim->model().y_cm), 3.0);
+    EXPECT_NE(out.str().find("rings: 2 rings of 100 cm from 100 to 200 cm, 8 photos, camera in"),
+              std::string::npos)
+        << out.str();
+}
+
 TEST_F(PhotoFigures, FailedTurnLandsWhereTheDroneIs)
 {
     config.fail_commands = {"cw"};
@@ -456,6 +474,7 @@ TEST_F(FigureRefusals, BadArgumentsSendNothing)
         {"polygon 13", "polygon corners must be 3..12, got 13"},
         {"polygon 12 50", "polygon: a side of 26 cm is too short"},
         {"star 1 2 3 4", "usage: star [radius]"},
+        {"rings 150 100 120 3", "rings: rings closer than 20 cm"},
         {"eight 100 200 30 upright",
          "eight: the lowest point (height - radius) must be at least 50 cm, got 0"},
     };

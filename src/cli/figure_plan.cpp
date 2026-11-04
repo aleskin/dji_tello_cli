@@ -42,6 +42,9 @@ constexpr int kBoomerangStepDeg = 30;
 constexpr int kMinPolygonCorners = 3;
 constexpr int kMaxPolygonCorners = 12;
 constexpr int kStarPoints = 5;
+constexpr int kRingsRadiusCm = 150;
+constexpr int kRings = 3;
+constexpr int kMaxRings = 10;
 constexpr std::chrono::milliseconds kPullHold{2000}; // a still shot at both ends of a video move
 
 // Rough Tello timing for the estimate.
@@ -680,6 +683,55 @@ FigurePlan plan_star(const FigureArgs& args, const std::string& usage)
     return plan_shape("star", p, kStarPoints, 2);
 }
 
+FigurePlan plan_rings(const FigureArgs& args, const std::string& usage)
+{
+    const std::string name = "rings";
+    const Parsed p(args, usage,
+                   {kRingsRadiusCm, kHelixFromCm, kHelixToCm, kRings, kFigureStepDeg, kFigureSpeed},
+                   {});
+    const int radius = p.number(0);
+    const int from = p.number(1);
+    const int to = p.number(2);
+    const int rings = p.number(3);
+    const int step = p.number(4);
+    const int speed = p.number(5);
+    check_circle(name, radius, step);
+    check_range(name, "from height (cm)", from, kMinFigureHeightCm, kMaxFigureHeightCm);
+    check_range(name, "to height (cm)", to, kMinFigureHeightCm, kMaxFigureHeightCm);
+    check_range(name, "rings", rings, 1, kMaxRings);
+    check_speed(name, speed);
+    if (rings > 1 && std::abs(to - from) / (rings - 1) < kMinMoveCm)
+    {
+        throw FigureError(name + ": rings closer than " + std::to_string(kMinMoveCm) +
+                          " cm, take fewer rings or a larger height range");
+    }
+    const int count = 360 / step;
+
+    FigurePlan plan =
+        new_plan(name,
+                 std::to_string(rings) + " rings of " + std::to_string(radius) + " cm from " +
+                     std::to_string(from) + " to " + std::to_string(rings > 1 ? to : from) +
+                     " cm, " + std::to_string(rings * count) + " photos, camera in",
+                 speed);
+    plan.steps.push_back(FigureStep::move(0, 0, from));
+    double height = from;
+    for (int ring = 0; ring < rings; ++ring)
+    {
+        height = rings > 1 ? from + static_cast<double>(to - from) * ring / (rings - 1) : from;
+        for (int k = 0; k < count; ++k)
+        {
+            const double bearing = step * k;
+            plan.steps.push_back(FigureStep::move(radius * std::cos(bearing * kDegree),
+                                                  radius * std::sin(bearing * kDegree), height));
+            plan.steps.push_back(FigureStep::face(bearing + 180.0));
+            plan.steps.push_back(FigureStep::photo());
+        }
+        plan.steps.push_back(FigureStep::move(radius, 0, height));
+    }
+    plan.steps.push_back(FigureStep::move(0, 0, height));
+    return plan;
+}
+
 } // namespace
 
 FigureStep FigureStep::move(double x_cm, double y_cm, double z_cm)
@@ -795,6 +847,11 @@ const std::vector<FigureSpec>& figure_specs()
          plan_polygon},
         {"star", "star [radius] [height] [flat|upright] [speed]",
          "like polygon, but a five-pointed star drawn in one line", plan_star},
+        {"rings", "rings [radius] [from height] [to height] [rings] [step] [speed]",
+         "take off and fly rings (3) of radius (150 cm) around the takeoff point from 100 to "
+         "300 cm, camera in, a photo every step degrees (30), all in one folder for a 3D model "
+         "(Meshroom); back to the center and land",
+         plan_rings},
     };
     return specs;
 }
