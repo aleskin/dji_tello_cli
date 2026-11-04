@@ -268,6 +268,18 @@ TEST_F(PhotoFigures, DronieFliesAwayFilmingThePilot)
     EXPECT_NE(out.str().find("dronie: saved "), std::string::npos) << out.str();
 }
 
+TEST_F(PhotoFigures, RevealStartsLowAndRisesForward)
+{
+    start();
+    ASSERT_TRUE(cli->execute_line("reveal")) << out.str();
+    EXPECT_EQ(commands(), (std::vector<std::string>{"streamon", "takeoff", "go 0 0 -30 30",
+                                                    "go 300 0 150 30", "go -300 0 0 30", "land"}));
+    EXPECT_NE(out.str().find("reveal: camera forward, from 50 cm forward 300 cm and up to 200 "
+                             "cm, video"),
+              std::string::npos)
+        << out.str();
+}
+
 TEST_F(PhotoFigures, FailedTurnLandsWhereTheDroneIs)
 {
     config.fail_commands = {"cw"};
@@ -335,6 +347,7 @@ TEST_F(FigureRefusals, BadArgumentsSendNothing)
         {"tower 300 200", "tower: from must be below to, got 300 and 200"},
         {"tower 100 500 10", "tower step (cm) must be 20..500, got 10"},
         {"dronie 2000", "dronie distance (cm) must be 50..1000, got 2000"},
+        {"reveal 300 60", "reveal height (cm) must be 70..1000, got 60"},
     };
     for (const auto& [line, error] : cases)
     {

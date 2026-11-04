@@ -356,6 +356,31 @@ FigurePlan plan_dronie(const FigureArgs& args, const std::string& usage)
     return plan;
 }
 
+FigurePlan plan_reveal(const FigureArgs& args, const std::string& usage)
+{
+    const std::string name = "reveal";
+    const Parsed p(args, usage, {kPullDistanceCm, kFigureHeightCm, kFigureSpeed}, {});
+    const int distance = p.number(0);
+    const int height = p.number(1);
+    const int speed = p.number(2);
+    check_range(name, "distance (cm)", distance, kMinFigureRadiusCm, kMaxPullDistanceCm);
+    check_range(name, "height (cm)", height, kMinFigureHeightCm + kMinMoveCm, kMaxFigureHeightCm);
+    check_speed(name, speed);
+
+    FigurePlan plan =
+        new_plan(name,
+                 "camera forward, from " + std::to_string(kMinFigureGroundCm) + " cm forward " +
+                     std::to_string(distance) + " cm and up to " + std::to_string(height) + " cm",
+                 speed);
+    plan.video = true;
+    plan.steps.push_back(FigureStep::move(0, 0, kMinFigureGroundCm));
+    plan.steps.push_back(FigureStep::wait(kPullHold));
+    plan.steps.push_back(FigureStep::move(distance, 0, height));
+    plan.steps.push_back(FigureStep::wait(kPullHold));
+    plan.steps.push_back(FigureStep::move(0, 0, height));
+    return plan;
+}
+
 } // namespace
 
 FigureStep FigureStep::move(double x_cm, double y_cm, double z_cm)
@@ -436,6 +461,10 @@ const std::vector<FigureSpec>& figure_specs()
          "take off, turn the camera on you and fly away (300 cm) and up (200 cm) in one line "
          "with video; back to the center and land",
          plan_dronie},
+        {"reveal", "reveal [distance] [height] [speed]",
+         "take off, sink low (50 cm), then fly forward (300 cm) and up (200 cm) with video, "
+         "camera forward: the view opens up; back to the center and land",
+         plan_reveal},
     };
     return specs;
 }
