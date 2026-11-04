@@ -39,6 +39,9 @@ constexpr int kBoomerangWidthCm = 200;
 constexpr int kBoomerangRiseCm = 100;
 constexpr int kBoomerangLowCm = 100;
 constexpr int kBoomerangStepDeg = 30;
+constexpr int kMinPolygonCorners = 3;
+constexpr int kMaxPolygonCorners = 12;
+constexpr int kStarPoints = 5;
 constexpr std::chrono::milliseconds kPullHold{2000}; // a still shot at both ends of a video move
 
 // Rough Tello timing for the estimate.
@@ -614,6 +617,69 @@ FigurePlan plan_eight(const FigureArgs& args, const std::string& usage)
     return plan;
 }
 
+// Polygon (jump 1) or star (jump 2) through N points on a circle, flat or upright.
+FigurePlan plan_shape(const std::string& name, const Parsed& p, int corners, int jump)
+{
+    const int radius = p.number(1);
+    const int height = p.number(2);
+    const int speed = p.number(3);
+    check_range(name, "corners", corners, kMinPolygonCorners, kMaxPolygonCorners);
+    check_range(name, "radius (cm)", radius, kMinFigureRadiusCm, kMaxFigureRadiusCm);
+    check_range(name, "height (cm)", height, kMinFigureHeightCm, kMaxFigureHeightCm);
+    check_speed(name, speed);
+    const double side = 2.0 * radius * std::sin(jump * std::numbers::pi / corners);
+    if (side < kMinFigureLegCm)
+    {
+        throw FigureError(name + ": a side of " + str(side) + " cm is too short, the drone needs " +
+                          std::to_string(kMinFigureLegCm) + ": take a larger radius");
+    }
+    const bool flat = p.pick({"flat", "upright"}) == "flat";
+    if (!flat)
+    {
+        check_vertical(name, height, radius);
+    }
+
+    FigurePlan plan =
+        new_plan(name,
+                 std::string(flat ? "flat" : "upright") + ", " + std::to_string(corners) +
+                     " corners on a " + std::to_string(radius) + " cm circle " +
+                     std::to_string(height) + " cm above the takeoff",
+                 speed);
+    auto corner = [&](int k)
+    {
+        const double a = 360.0 * k * jump / corners * kDegree;
+        return flat ? FigureStep::move(radius * std::cos(a), radius * std::sin(a), height)
+                    : FigureStep::move(0, radius * std::sin(a), height + radius * std::cos(a));
+    };
+    plan.steps.push_back(FigureStep::move(0, 0, height));
+    for (int k = 0; k <= corners; ++k)
+    {
+        plan.steps.push_back(corner(k));
+    }
+    plan.steps.push_back(FigureStep::move(0, 0, height));
+    return plan;
+}
+
+FigurePlan plan_polygon(const FigureArgs& args, const std::string& usage)
+{
+    const Parsed p(args, usage, {0, kFigureRadiusCm, kFigureHeightCm, kFigureSpeed},
+                   {"flat", "upright"});
+    if (p.number(0) == 0)
+    {
+        throw FigureError("usage: " + usage);
+    }
+    return plan_shape("polygon", p, p.number(0), 1);
+}
+
+FigurePlan plan_star(const FigureArgs& args, const std::string& usage)
+{
+    std::vector<std::string_view> all{"5"};
+    all.insert(all.end(), args.begin(), args.end());
+    const Parsed p(all, usage, {5, kFigureRadiusCm, kFigureHeightCm, kFigureSpeed},
+                   {"flat", "upright"});
+    return plan_shape("star", p, kStarPoints, 2);
+}
+
 } // namespace
 
 FigureStep FigureStep::move(double x_cm, double y_cm, double z_cm)
@@ -723,6 +789,12 @@ const std::vector<FigureSpec>& figure_specs()
          "takeoff: two circles of radius (100 cm), flat (right and left) or upright (above and "
          "below), camera forward; land",
          plan_eight},
+        {"polygon", "polygon <corners> [radius] [height] [flat|upright] [speed]",
+         "take off and draw a polygon with corners (3..12) on a circle of radius (100 cm) around "
+         "the point height (200 cm) above the takeoff, flat or upright (facing you); land",
+         plan_polygon},
+        {"star", "star [radius] [height] [flat|upright] [speed]",
+         "like polygon, but a five-pointed star drawn in one line", plan_star},
     };
     return specs;
 }

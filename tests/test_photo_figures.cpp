@@ -361,6 +361,23 @@ TEST_F(PhotoFigures, EightFlatAndUpright)
     EXPECT_LT(std::hypot(sim->model().x_cm, sim->model().y_cm), 3.0);
 }
 
+TEST_F(PhotoFigures, PolygonAndStar)
+{
+    start();
+    ASSERT_TRUE(cli->execute_line("polygon 4 100 200")) << out.str();
+    EXPECT_EQ(commands(),
+              (std::vector<std::string>{"takeoff", "go 0 0 120 30", "go 100 0 0 30",
+                                        "go -100 -100 0 30", "go -100 100 0 30", "go 100 100 0 30",
+                                        "go 100 -100 0 30", "go -100 0 0 30", "land"}));
+    ASSERT_TRUE(cli->execute_line("star 100 250 upright")) << out.str();
+    EXPECT_EQ(height_range(), (std::pair<int, int>{80, 350}));
+    EXPECT_LT(std::hypot(sim->model().x_cm, sim->model().y_cm), 3.0);
+    EXPECT_NE(
+        out.str().find("star: upright, 5 corners on a 100 cm circle 250 cm above the takeoff"),
+        std::string::npos)
+        << out.str();
+}
+
 TEST_F(PhotoFigures, FailedTurnLandsWhereTheDroneIs)
 {
     config.fail_commands = {"cw"};
@@ -435,6 +452,10 @@ TEST_F(FigureRefusals, BadArgumentsSendNothing)
         {"helix 6", "helix turns must be 1..5, got 6"},
         {"helix 2 100 300 50 200 10", "10 degrees of a 50 cm circle"},
         {"boomerang 400 80", "boomerang width (cm) must be 100..1000, got 80"},
+        {"polygon", "usage: polygon <corners>"},
+        {"polygon 13", "polygon corners must be 3..12, got 13"},
+        {"polygon 12 50", "polygon: a side of 26 cm is too short"},
+        {"star 1 2 3 4", "usage: star [radius]"},
         {"eight 100 200 30 upright",
          "eight: the lowest point (height - radius) must be at least 50 cm, got 0"},
     };
