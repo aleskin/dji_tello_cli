@@ -25,6 +25,10 @@ constexpr int kBounceTimes = 3;
 constexpr int kMaxBounceTimes = 10;
 constexpr int kBounceAmplitudeCm = 100;
 constexpr int kBounceLowCm = 100;
+constexpr int kFlipHeightCm = 150;
+constexpr int kMaxFlips = 8;
+constexpr int kMinFlipBattery = 50; // the Tello refuses flips below
+constexpr std::chrono::milliseconds kFlipPause{1000};
 constexpr std::chrono::milliseconds kPullHold{2000}; // a still shot at both ends of a video move
 
 // Rough Tello timing for the estimate.
@@ -432,6 +436,37 @@ FigurePlan plan_bounce(const FigureArgs& args, const std::string& usage)
     return plan;
 }
 
+FigurePlan plan_flips(const FigureArgs& args, const std::string& usage)
+{
+    const std::string name = "flips";
+    const Parsed p(args, usage, {}, {"l", "r", "f", "b"});
+    std::vector<std::string_view> flips = p.words();
+    if (flips.empty())
+    {
+        flips = {"l", "r", "f", "b"};
+    }
+    check_range(name, "flip count", static_cast<int>(flips.size()), 1, kMaxFlips);
+
+    std::string list;
+    for (const auto flip : flips)
+    {
+        list += (list.empty() ? "" : " ") + std::string(flip);
+    }
+    FigurePlan plan = new_plan(name,
+                               std::to_string(flips.size()) + " flips (" + list + ") at " +
+                                   std::to_string(kFlipHeightCm) + " cm",
+                               kFigureSpeed);
+    plan.min_battery = kMinFlipBattery;
+    plan.steps.push_back(FigureStep::move(0, 0, kFlipHeightCm));
+    for (const auto flip : flips)
+    {
+        plan.steps.push_back(FigureStep::wait(kFlipPause));
+        plan.steps.push_back(FigureStep::sdk("flip " + std::string(flip)));
+    }
+    plan.steps.push_back(FigureStep::wait(kFlipPause));
+    return plan;
+}
+
 } // namespace
 
 FigureStep FigureStep::move(double x_cm, double y_cm, double z_cm)
@@ -520,6 +555,10 @@ const std::vector<FigureSpec>& figure_specs()
          "take off, go up and down times (3) between 100 cm and 100 + amplitude (100 cm); with "
          "cw or ccw it also makes one full turn on the way; land",
          plan_bounce},
+        {"flips", "flips [l|r|f|b ...]",
+         "take off, climb to 150 cm and flip in the given directions (all four), a pause between; "
+         "needs 50 % battery; land",
+         plan_flips},
     };
     return specs;
 }

@@ -293,6 +293,24 @@ TEST_F(PhotoFigures, BounceWithATurn)
         << out.str();
 }
 
+TEST_F(PhotoFigures, FlipsShow)
+{
+    start();
+    ASSERT_TRUE(cli->execute_line("flips f b f")) << out.str();
+    EXPECT_EQ(commands(), (std::vector<std::string>{"battery?", "takeoff", "go 0 0 70 30", "flip f",
+                                                    "flip b", "flip f", "land"}));
+    EXPECT_NE(out.str().find("flips: 3 flips (f b f) at 150 cm"), std::string::npos) << out.str();
+}
+
+TEST_F(PhotoFigures, FlipsNeedHalfTheBattery)
+{
+    config.battery = 40;
+    start();
+    cli->execute_line("flips");
+    EXPECT_EQ(commands(), (std::vector<std::string>{"battery?"}));
+    EXPECT_NE(out.str().find("flips: battery 40 %, needs 50 %"), std::string::npos) << out.str();
+}
+
 TEST_F(PhotoFigures, FailedTurnLandsWhereTheDroneIs)
 {
     config.fail_commands = {"cw"};
@@ -362,6 +380,8 @@ TEST_F(FigureRefusals, BadArgumentsSendNothing)
         {"dronie 2000", "dronie distance (cm) must be 50..1000, got 2000"},
         {"reveal 300 60", "reveal height (cm) must be 70..1000, got 60"},
         {"bounce 11", "bounce times must be 1..10, got 11"},
+        {"flips l x", "usage: flips [l|r|f|b ...]"},
+        {"flips 3", "usage: flips [l|r|f|b ...]"},
     };
     for (const auto& [line, error] : cases)
     {
