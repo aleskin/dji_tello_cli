@@ -104,6 +104,7 @@ constexpr int kMaxOrbitCm = 500;
 constexpr int kMinOrbitSpeed = 10;
 constexpr int kMaxOrbitSpeed = 100;
 constexpr int kDefaultDeadzone = 10;
+constexpr int kRouteSpeed = 30;                          // cm/s of a recorded manual flight
 constexpr std::chrono::milliseconds kKeyboardPeriod{50}; // rc at 20 Hz
 
 // Interactive command layer. Knows only DroneBase: which model sits behind it decides what works.
@@ -226,6 +227,10 @@ private:
     void face_point(const Args& args, bool away);
     void orbit(const Args& args);
     void run_figure(const FigureSpec& spec, const Args& args);
+    void record_command(const Args& args);
+    [[nodiscard]] bool recordable(const CommandInfo& info, const Args& args) const;
+    void note_recorded(std::string_view command, const std::string& name,
+                       const std::optional<drone::Position>& before, bool was_airborne);
     void print_dry_run(const FigurePlan& plan);
     [[nodiscard]] video::Osd osd() const;
 
@@ -250,6 +255,13 @@ private:
     int joystick_deadzone_ = kDefaultDeadzone;
     std::atomic<const char*> manual_mode_{""}; // "KEYBOARD"/"JOYSTICK", read by the window thread
     std::unique_ptr<drone::PositionSource> position_;
+    struct Recording
+    {
+        std::filesystem::path file;
+        std::vector<std::string> lines;
+    };
+    std::optional<Recording> recording_; // between "record start" and "record stop"
+    bool recording_busy_ = false;        // a recorded command runs: its own commands do not count
     std::unique_ptr<video::Viewer> viewer_; // after video_: it reads the stream, so it goes first
 };
 

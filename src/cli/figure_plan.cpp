@@ -1047,6 +1047,19 @@ std::vector<std::string> step_commands(const drone::Position& now, const FigureS
     return {};
 }
 
+std::vector<std::string> route_commands(const drone::Position& from, const drone::Position& to,
+                                        int speed)
+{
+    auto out = step_commands(from, FigureStep::move(to.x_cm, to.y_cm, to.z_cm), speed);
+    drone::Position there = to;
+    there.heading_deg = from.heading_deg;
+    for (auto& command : step_commands(there, FigureStep::face(to.heading_deg), speed))
+    {
+        out.push_back(std::move(command));
+    }
+    return out;
+}
+
 void apply_command(drone::PositionSource& source, std::string_view command)
 {
     std::istringstream in{std::string(command)};

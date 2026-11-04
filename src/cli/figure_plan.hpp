@@ -97,6 +97,11 @@ struct FigureSpec
 [[nodiscard]] std::vector<std::string> step_commands(const drone::Position& now,
                                                      const FigureStep& step, int speed);
 
+// SDK commands from `from` to `to`: a go in from's frame, then a turn to to's heading.
+// A manual flight in a recorded route; empty when the drone stayed put.
+[[nodiscard]] std::vector<std::string> route_commands(const drone::Position& from,
+                                                      const drone::Position& to, int speed);
+
 // Counts the position of a completed SDK command into source: go, cw/ccw, flip, up/down...
 void apply_command(drone::PositionSource& source, std::string_view command);
 

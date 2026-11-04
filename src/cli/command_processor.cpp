@@ -465,6 +465,17 @@ void CommandProcessor::register_commands()
                 throw UsageError("mission '" + path + "' did not complete");
             }
         });
+    add({"record",
+         {},
+         C::Mission,
+         "record start <file> | stop | status",
+         "write the flight into a mission file: commands as typed, keyboard/joystick flights as "
+         "go + turn by the position; 'mission <file>' flies it again",
+         {}},
+        [this](const Args& a)
+        {
+            record_command(a);
+        });
     add({"square",
          {},
          C::Mission,
@@ -770,9 +781,32 @@ bool CommandProcessor::execute(std::string_view command)
         out_ << "'" << name << "' is not supported by " << drone_.model() << '\n';
         return false;
     }
+    const bool record = recordable(entry->info, args);
+    const bool was_airborne = airborne_;
+    std::optional<drone::Position> before;
+    if (record && position_)
+    {
+        before = position_->position();
+    }
     try
     {
-        entry->run(args);
+        if (!record)
+        {
+            entry->run(args);
+            return true;
+        }
+        recording_busy_ = true;
+        try
+        {
+            entry->run(args);
+        }
+        catch (...)
+        {
+            recording_busy_ = false;
+            throw;
+        }
+        recording_busy_ = false;
+        note_recorded(command, entry->info.name, before, was_airborne);
         return true;
     }
     catch (const UsageError& e)
@@ -1869,6 +1903,128 @@ void CommandProcessor::run_figure(const FigureSpec& spec, const Args& args)
         out_ << ", " << saved << " of " << photos << " photos in " << dir.string();
     }
     out_ << '\n';
+}
+
+bool CommandProcessor::recordable(const CommandInfo& info, const Args& args) const
+{
+    if (!recording_ || recording_busy_ || info.name == "record" || info.name == "mission")
+    {
+        return false;
+    }
+    if (std::ranges::find(args, "dry") != args.end() ||
+        (info.name == "video" && !args.empty() && args[0] == "status"))
+    {
+        return false;
+    }
+    return info.category == Category::Flight || info.category == Category::Movement ||
+           info.category == Category::Mission || info.category == Category::Video;
+}
+
+void CommandProcessor::note_recorded(std::string_view command, const std::string& name,
+                                     const std::optional<drone::Position>& before,
+                                     bool was_airborne)
+{
+    if (!recording_ || name == "kbspeed")
+    {
+        return;
+    }
+    auto& lines = recording_->lines;
+    if (name != "keyboard" && name != "joystick")
+    {
+        lines.emplace_back(command);
+        return;
+    }
+    if (was_airborne != airborne_)
+    {
+        lines.emplace_back(airborne_ ? "takeoff" : "land");
+        lines.push_back("# " + name + ": the manual flight around the " +
+                        (airborne_ ? "takeoff" : "landing") + " is not recorded");
+        return;
+    }
+    if (!airborne_)
+    {
+        return;
+    }
+    if (!before)
+    {
+        lines.push_back("# " + name + ": not recorded, " + drone_.model() +
+                        " does not know its position");
+        return;
+    }
+    const auto route = route_commands(*before, position_->position(), kRouteSpeed);
+    lines.push_back("# " + name + (route.empty() ? ": stayed in place" : ""));
+    lines.insert(lines.end(), route.begin(), route.end());
+}
+
+void CommandProcessor::record_command(const Args& args)
+{
+    const std::string usage = "usage: record start <file> | stop | status";
+    const std::string_view what = args.empty() ? std::string_view("status") : args[0];
+    if (what == "start")
+    {
+        if (args.size() != 2)
+        {
+            throw UsageError(usage);
+        }
+        if (recording_)
+        {
+            throw UsageError("record: already recording to " + recording_->file.string());
+        }
+        if (in_mission_)
+        {
+            throw UsageError("record: not inside a mission");
+        }
+        const std::filesystem::path file(args[1]);
+        if (!std::ofstream(file, std::ios::app))
+        {
+            throw UsageError("record: cannot write '" + file.string() + "'");
+        }
+        recording_ = Recording{file, {}};
+        out_ << "recording the flight to " << file.string()
+             << (airborne_ ? " (in the air: the file starts mid-flight, without takeoff)" : "")
+             << '\n';
+        return;
+    }
+    if (args.size() != 1)
+    {
+        throw UsageError(usage);
+    }
+    if (what == "status")
+    {
+        if (recording_)
+        {
+            out_ << "recording to " << recording_->file.string() << ", " << recording_->lines.size()
+                 << " lines\n";
+        }
+        else
+        {
+            out_ << "not recording\n";
+        }
+        return;
+    }
+    if (what != "stop")
+    {
+        throw UsageError(usage);
+    }
+    if (!recording_)
+    {
+        throw UsageError("record: not recording");
+    }
+    const Recording done = std::move(*recording_);
+    recording_.reset();
+    std::ofstream file(done.file, std::ios::trunc);
+    file << "# recorded by tello " << local_timestamp() << ", replay: mission "
+         << done.file.string() << '\n';
+    for (const auto& line : done.lines)
+    {
+        file << line << '\n';
+    }
+    if (!file)
+    {
+        throw UsageError("record: cannot write '" + done.file.string() + "'");
+    }
+    out_ << "saved " << done.lines.size() << " lines to " << done.file.string()
+         << (airborne_ ? " (the drone is still in the air: no land at the end)" : "") << '\n';
 }
 
 void CommandProcessor::return_home()

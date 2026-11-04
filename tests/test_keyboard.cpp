@@ -7,9 +7,12 @@
 #include "tello/udp_socket.hpp"
 
 #include <gtest/gtest.h>
+#include <unistd.h>
 
 #include <algorithm>
 #include <chrono>
+#include <filesystem>
+#include <fstream>
 #include <functional>
 #include <memory>
 #include <sstream>
@@ -129,6 +132,32 @@ TEST_F(KeyboardCli, KeysBecomeRcUntilEscape)
     EXPECT_NE(out.str().find("command mode"), std::string::npos);
     EXPECT_EQ(alive, 1); // the window stays open after the mode
     EXPECT_TRUE(cli.airborne());
+}
+
+TEST_F(KeyboardCli, RecordedKeyboardFlightIsAComment)
+{
+    const auto file = std::filesystem::temp_directory_path() /
+                      ("tello_record_kb_" + std::to_string(::getpid()) + ".txt");
+    cli.execute_line("takeoff");
+    ASSERT_TRUE(cli.execute_line("record start " + file.string()));
+    script = [](FakeViewer& v)
+    {
+        v.presses = {"escape"};
+    };
+    cli.execute_line("kb");
+    cli.execute_line("kbspeed 50");
+    cli.execute_line("record stop");
+    std::ifstream in(file);
+    std::vector<std::string> lines;
+    for (std::string line; std::getline(in, line);)
+    {
+        lines.push_back(line);
+    }
+    std::filesystem::remove(file);
+    ASSERT_EQ(lines.size(), 2U) << out.str();
+    EXPECT_EQ(lines[1], "# keyboard: stayed in place");
+    EXPECT_NE(out.str().find("starts mid-flight"), std::string::npos) << out.str();
+    EXPECT_NE(out.str().find("still in the air"), std::string::npos) << out.str();
 }
 
 TEST_F(KeyboardCli, OsdShowsTheModeOnlyWhileActive)

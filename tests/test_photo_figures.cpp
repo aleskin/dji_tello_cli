@@ -19,6 +19,7 @@ extern "C"
 #include <chrono>
 #include <cmath>
 #include <filesystem>
+#include <fstream>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -442,6 +443,62 @@ TEST_F(PhotoFigures, ScanSnakesAcrossTheWall)
                                         "go 0 50 0 30", "go 0 -50 0 30", "land"}));
     EXPECT_EQ(photos().size(), 6U);
     EXPECT_EQ(height_range(), (std::pair{80, 150}));
+}
+
+TEST_F(PhotoFigures, RecordedFlightReplaysAsAMission)
+{
+    start();
+    std::filesystem::create_directories(dir);
+    const auto file = dir / "route.txt";
+    ASSERT_TRUE(cli->execute_line("record start " + file.string()));
+    ASSERT_TRUE(cli->execute_line("takeoff; forward 50; position; cw 90; panorama dry; land"))
+        << out.str();
+    ASSERT_TRUE(cli->execute_line("record status"));
+    EXPECT_NE(out.str().find("4 lines"), std::string::npos) << out.str();
+    ASSERT_TRUE(cli->execute_line("record stop"));
+    EXPECT_NE(out.str().find("saved 4 lines to " + file.string()), std::string::npos) << out.str();
+
+    std::ifstream in(file);
+    std::vector<std::string> lines;
+    for (std::string line; std::getline(in, line);)
+    {
+        lines.push_back(line);
+    }
+    ASSERT_EQ(lines.size(), 5U);
+    EXPECT_TRUE(lines[0].starts_with("# recorded by tello ")) << lines[0];
+    EXPECT_EQ(std::vector<std::string>(lines.begin() + 1, lines.end()),
+              (std::vector<std::string>{"takeoff", "forward 50", "cw 90", "land"}));
+
+    {
+        const std::scoped_lock lock(mutex);
+        log.clear();
+    }
+    ASSERT_TRUE(cli->execute_line("mission " + file.string())) << out.str();
+    EXPECT_EQ(commands(), (std::vector<std::string>{"takeoff", "forward 50", "cw 90", "land"}));
+}
+
+TEST_F(PhotoFigures, RecordRefusals)
+{
+    start();
+    std::filesystem::create_directories(dir);
+    cli->execute_line("record stop");
+    EXPECT_NE(out.str().find("record: not recording"), std::string::npos) << out.str();
+    cli->execute_line("record start");
+    EXPECT_NE(out.str().find("usage: record start <file> | stop | status"), std::string::npos);
+    cli->execute_line("record start /nonexistent_dir/route.txt");
+    EXPECT_NE(out.str().find("record: cannot write"), std::string::npos) << out.str();
+    ASSERT_TRUE(cli->execute_line("record start " + (dir / "a.txt").string()));
+    cli->execute_line("record start " + (dir / "b.txt").string());
+    EXPECT_NE(out.str().find("record: already recording"), std::string::npos) << out.str();
+}
+
+TEST(RouteTest, ManualFlightBecomesGoAndTurn)
+{
+    const drone::Position from{0, 0, 80, 90, 0};
+    const drone::Position to{0, 100, 130, 0, 0};
+    EXPECT_EQ(cli::route_commands(from, to, 30),
+              (std::vector<std::string>{"go 100 0 50 30", "ccw 90"}));
+    EXPECT_TRUE(cli::route_commands(from, from, 30).empty());
 }
 
 TEST_F(PhotoFigures, FailedTurnLandsWhereTheDroneIs)
