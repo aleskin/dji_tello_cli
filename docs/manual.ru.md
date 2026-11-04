@@ -1,6 +1,6 @@
 # DJI Tello CLI — руководство пользователя
 
-[English](../README.md) · **Русский** · [Srpski](manual.sr.md)
+[English](../README.md) · **Русский** · [Srpski](manual.sr.md) · [Deutsch](manual.de.md) · [Français](manual.fr.md) · [Español](manual.es.md)
 
 `tello` — интерактивная консольная программа для управления дроном DJI / Ryze Tello с компьютера
 под Linux: команды, фигуры с фото и видео, миссии из файла, полёт с клавиатуры и геймпада.

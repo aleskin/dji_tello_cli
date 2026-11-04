@@ -1,6 +1,6 @@
 # DJI Tello CLI
 
-**English** · [Русский](docs/manual.ru.md) · [Srpski](docs/manual.sr.md)
+**English** · [Русский](docs/manual.ru.md) · [Srpski](docs/manual.sr.md) · [Deutsch](docs/manual.de.md) · [Français](docs/manual.fr.md) · [Español](docs/manual.es.md)
 
 Interactive command-line controller for the DJI / Ryze Tello drone, written in C++20,
 with a fake drone (`tello-sim`) so everything can be tried without flying.
