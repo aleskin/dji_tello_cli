@@ -240,6 +240,17 @@ TEST_F(PhotoFigures, PanoramaTurnsOnTheSpot)
         << out.str();
 }
 
+TEST_F(PhotoFigures, TowerClimbsWithPhotos)
+{
+    start();
+    ASSERT_TRUE(cli->execute_line("tower 100 300 100")) << out.str();
+    EXPECT_EQ(commands(), (std::vector<std::string>{"streamon", "takeoff", "go 0 0 20 30",
+                                                    "go 0 0 100 30", "go 0 0 100 30", "land"}));
+    EXPECT_EQ(photos().size(), 3U);
+    EXPECT_NE(out.str().find("tower: 3 photos from 100 to 300 cm every 100 cm"), std::string::npos)
+        << out.str();
+}
+
 TEST_F(PhotoFigures, FailedTurnLandsWhereTheDroneIs)
 {
     config.fail_commands = {"cw"};
@@ -304,6 +315,8 @@ TEST_F(FigureRefusals, BadArgumentsSendNothing)
         {"loop 200 100 30 cw", "usage: loop"},
         {"panorama 200 25", "panorama step must divide 360, got 25"},
         {"panorama 200 30 in", "usage: panorama [height] [step] [cw|ccw]"},
+        {"tower 300 200", "tower: from must be below to, got 300 and 200"},
+        {"tower 100 500 10", "tower step (cm) must be 20..500, got 10"},
     };
     for (const auto& [line, error] : cases)
     {

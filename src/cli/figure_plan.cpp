@@ -16,6 +16,9 @@ namespace
 constexpr double kDegree = std::numbers::pi / 180.0;
 constexpr int kMinMoveCm = 20;  // go: shorter on every axis is refused
 constexpr int kMaxMoveCm = 500; // go: longer on an axis is refused
+constexpr int kTowerFromCm = 100;
+constexpr int kTowerToCm = 500;
+constexpr int kTowerStepCm = 50;
 
 // Rough Tello timing for the estimate.
 constexpr double kTakeoffSeconds = 6.0;
@@ -296,6 +299,36 @@ FigurePlan plan_panorama(const FigureArgs& args, const std::string& usage)
     return plan;
 }
 
+FigurePlan plan_tower(const FigureArgs& args, const std::string& usage)
+{
+    const std::string name = "tower";
+    const Parsed p(args, usage, {kTowerFromCm, kTowerToCm, kTowerStepCm}, {});
+    const int from = p.number(0);
+    const int to = p.number(1);
+    const int step = p.number(2);
+    check_range(name, "from (cm)", from, kMinFigureHeightCm, kMaxFigureHeightCm);
+    check_range(name, "to (cm)", to, kMinFigureHeightCm, kMaxFigureHeightCm);
+    check_range(name, "step (cm)", step, kMinMoveCm, kMaxMoveCm);
+    if (from >= to)
+    {
+        throw FigureError(name + ": from must be below to, got " + std::to_string(from) + " and " +
+                          std::to_string(to));
+    }
+    const int count = (to - from) / step + 1;
+
+    FigurePlan plan = new_plan(name,
+                               std::to_string(count) + " photos from " + std::to_string(from) +
+                                   " to " + std::to_string(from + (count - 1) * step) +
+                                   " cm every " + std::to_string(step) + " cm",
+                               kFigureSpeed);
+    for (int k = 0; k < count; ++k)
+    {
+        plan.steps.push_back(FigureStep::move(0, 0, from + k * step));
+        plan.steps.push_back(FigureStep::photo());
+    }
+    return plan;
+}
+
 } // namespace
 
 FigureStep FigureStep::move(double x_cm, double y_cm, double z_cm)
@@ -368,6 +401,10 @@ const std::vector<FigureSpec>& figure_specs()
          "take off, climb to height (200 cm) and turn on the spot, a photo every step degrees "
          "(30) all around; land",
          plan_panorama},
+        {"tower", "tower [from] [to] [step]",
+         "take off and climb straight up from (100 cm) to (500 cm), a photo every step (50 cm), "
+         "camera forward; land",
+         plan_tower},
     };
     return specs;
 }
