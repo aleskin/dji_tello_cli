@@ -19,6 +19,7 @@
 #include <optional>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <unistd.h>
 #include <vector>
 
@@ -56,7 +57,8 @@ protected:
         std::filesystem::remove_all(dir);
     }
 
-    void start()
+    // real_sleep: photo settles take real time, so a recording gets its keyframes.
+    void start(bool real_sleep = false)
     {
         sim = std::make_unique<tello::sim::Simulator>(config);
         drone = std::make_unique<tello::TelloClassic>(
@@ -66,8 +68,12 @@ protected:
         drone->connect();
         cli = std::make_unique<cli::CommandProcessor>(
             *drone, out, cli::SessionInfo{"127.0.0.1", sim->command_port(), 0, dir, dir}, nullptr,
-            [](milliseconds)
+            [real_sleep](milliseconds pause)
             {
+                if (real_sleep)
+                {
+                    std::this_thread::sleep_for(pause);
+                }
             });
         const std::scoped_lock lock(mutex);
         log.clear();
@@ -237,6 +243,28 @@ TEST_F(PhotoFigures, FailedTurnLandsWhereTheDroneIs)
     EXPECT_TRUE(photos().empty());
 }
 
+TEST_F(PhotoFigures, VideoRecordsTheWholeFigure)
+{
+    start(true);
+    ASSERT_TRUE(cli->execute_line("flower 200 100 120 video")) << out.str();
+    const std::string text = out.str();
+    EXPECT_NE(text.find("camera in, video"), std::string::npos) << text;
+    EXPECT_NE(text.find("flower: recording to "), std::string::npos) << text;
+    EXPECT_NE(text.find("flower: saved "), std::string::npos) << text;
+    EXPECT_LT(text.find("flower: saved "), text.find("flower: done, 3 of 3 photos"));
+    int videos = 0;
+    for (const auto& file : std::filesystem::directory_iterator(dir))
+    {
+        if (file.path().extension() == ".mp4")
+        {
+            ++videos;
+            EXPECT_GT(file.file_size(), 0U);
+        }
+    }
+    EXPECT_EQ(videos, 1);
+    EXPECT_EQ(commands().back(), "land");
+}
+
 class FigureRefusals : public ::testing::Test
 {
 protected:
@@ -321,6 +349,13 @@ TEST_F(FigureDryRun, PrintsTheFlightAndSendsNothing)
     EXPECT_NE(text.find("flower: 29 commands, 12 photos, about "), std::string::npos) << text;
     EXPECT_NE(text.find(" highest 200 cm, about "), std::string::npos) << text;
     EXPECT_NE(text.find(" % battery\n"), std::string::npos) << text;
+}
+
+TEST_F(FigureDryRun, VideoFlagIsShownInTheSummary)
+{
+    cli.execute_line("loop video dry");
+    EXPECT_TRUE(mock->requests.empty());
+    EXPECT_NE(out.str().find("camera in, video\n"), std::string::npos) << out.str();
 }
 
 TEST_F(FigureDryRun, WorksInTheAirAndChecksArguments)

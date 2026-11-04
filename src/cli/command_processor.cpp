@@ -429,7 +429,12 @@ void CommandProcessor::register_commands()
         });
     for (const auto& spec : figure_specs())
     {
-        add({spec.name, {}, C::Mission, spec.usage + " [dry]", spec.help, Capability::Position},
+        add({spec.name,
+             {},
+             C::Mission,
+             spec.usage + " [video] [dry]",
+             spec.help,
+             Capability::Position},
             [this, &spec](const Args& a)
             {
                 run_figure(spec, a);
@@ -1679,12 +1684,17 @@ void CommandProcessor::run_figure(const FigureSpec& spec, const Args& args)
 {
     const std::string usage = find(spec.name)->info.usage;
     bool dry = false;
+    bool video = false;
     Args rest;
     for (const auto arg : args)
     {
         if (arg == "dry")
         {
             dry = true;
+        }
+        else if (arg == "video")
+        {
+            video = true;
         }
         else
         {
@@ -1699,6 +1709,11 @@ void CommandProcessor::run_figure(const FigureSpec& spec, const Args& args)
     catch (const FigureError& e)
     {
         throw UsageError(e.what());
+    }
+    plan.video = plan.video || video;
+    if (plan.video)
+    {
+        plan.summary += ", video";
     }
     const std::string& name = plan.name;
     if (dry)
@@ -1721,7 +1736,7 @@ void CommandProcessor::run_figure(const FigureSpec& spec, const Args& args)
     }
     const int photos = plan.photos();
     std::filesystem::path dir;
-    if (photos > 0)
+    if (photos > 0 || plan.video)
     {
         if (!drone_.supports(Capability::Video))
         {
@@ -1733,6 +1748,9 @@ void CommandProcessor::run_figure(const FigureSpec& spec, const Args& args)
         {
             throw UsageError(name + ": no picture from the camera, not taking off");
         }
+    }
+    if (photos > 0)
+    {
         const std::filesystem::path base = session_.photo_dir / (name + '_' + local_timestamp());
         dir = base;
         for (int n = 2; std::filesystem::exists(dir); ++n)
@@ -1752,13 +1770,33 @@ void CommandProcessor::run_figure(const FigureSpec& spec, const Args& args)
          << '\n'
          << std::flush;
 
-    auto stop = [this, &name](const std::string& what)
+    // A recording the user started goes on; the figure's own one ends with the figure.
+    const bool record =
+        plan.video && video_->status().recording.empty() && !video_->status().waiting_for_keyframe;
+    if (record)
+    {
+        const auto path = video::default_recording_path(session_.video_dir);
+        video_->start_recording(path);
+        out_ << name << ": recording to " << path.string() << '\n';
+    }
+    auto finish_video = [this, record, &name]
+    {
+        if (record)
+        {
+            const auto saved = video_->stop_recording();
+            out_ << name << ": "
+                 << (saved.empty() ? std::string("nothing recorded") : "saved " + saved.string())
+                 << '\n';
+        }
+    };
+    auto stop = [this, &name, &finish_video](const std::string& what)
     {
         if (airborne_ && !in_mission_)
         {
             out_ << name << ": landing\n";
             execute("land");
         }
+        finish_video();
         throw UsageError(name + ": " + what);
     };
     if (!execute("takeoff"))
@@ -1805,8 +1843,10 @@ void CommandProcessor::run_figure(const FigureSpec& spec, const Args& args)
     }
     if (!execute("land"))
     {
+        finish_video();
         throw UsageError(name + ": land failed");
     }
+    finish_video();
     out_ << name << ": done";
     if (photos > 0)
     {

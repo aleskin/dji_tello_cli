@@ -70,6 +70,7 @@ struct FigurePlan
     std::string summary; // "height 200 cm, radius 100 cm, 12 photos every 30 degrees, camera in"
     int speed = kFigureSpeed;
     int min_battery = 0; // percent needed before the takeoff
+    bool video = false;  // record the camera from the takeoff to the landing
     std::vector<FigureStep> steps;
 
     [[nodiscard]] int photos() const;
