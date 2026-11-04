@@ -280,6 +280,19 @@ TEST_F(PhotoFigures, RevealStartsLowAndRisesForward)
         << out.str();
 }
 
+TEST_F(PhotoFigures, BounceWithATurn)
+{
+    start();
+    ASSERT_TRUE(cli->execute_line("bounce 2 50 ccw")) << out.str();
+    EXPECT_EQ(commands(),
+              (std::vector<std::string>{"takeoff", "go 0 0 20 30", "go 0 0 50 30", "ccw 90",
+                                        "go 0 0 -50 30", "ccw 90", "go 0 0 50 30", "ccw 90",
+                                        "go 0 0 -50 30", "ccw 90", "land"}));
+    EXPECT_NE(out.str().find("bounce: 2 times between 100 and 150 cm, one turn ccw"),
+              std::string::npos)
+        << out.str();
+}
+
 TEST_F(PhotoFigures, FailedTurnLandsWhereTheDroneIs)
 {
     config.fail_commands = {"cw"};
@@ -348,6 +361,7 @@ TEST_F(FigureRefusals, BadArgumentsSendNothing)
         {"tower 100 500 10", "tower step (cm) must be 20..500, got 10"},
         {"dronie 2000", "dronie distance (cm) must be 50..1000, got 2000"},
         {"reveal 300 60", "reveal height (cm) must be 70..1000, got 60"},
+        {"bounce 11", "bounce times must be 1..10, got 11"},
     };
     for (const auto& [line, error] : cases)
     {

@@ -21,6 +21,10 @@ constexpr int kTowerToCm = 500;
 constexpr int kTowerStepCm = 50;
 constexpr int kPullDistanceCm = 300;
 constexpr int kMaxPullDistanceCm = 1000;
+constexpr int kBounceTimes = 3;
+constexpr int kMaxBounceTimes = 10;
+constexpr int kBounceAmplitudeCm = 100;
+constexpr int kBounceLowCm = 100;
 constexpr std::chrono::milliseconds kPullHold{2000}; // a still shot at both ends of a video move
 
 // Rough Tello timing for the estimate.
@@ -104,6 +108,16 @@ public:
             }
         }
         return options.front();
+    }
+
+    [[nodiscard]] bool has(std::string_view word) const
+    {
+        return std::ranges::find(words_, word) != words_.end();
+    }
+
+    [[nodiscard]] const std::vector<std::string_view>& words() const
+    {
+        return words_;
     }
 
 private:
@@ -381,6 +395,43 @@ FigurePlan plan_reveal(const FigureArgs& args, const std::string& usage)
     return plan;
 }
 
+FigurePlan plan_bounce(const FigureArgs& args, const std::string& usage)
+{
+    const std::string name = "bounce";
+    const Parsed p(args, usage, {kBounceTimes, kBounceAmplitudeCm, kFigureSpeed}, {"cw", "ccw"});
+    const int times = p.number(0);
+    const int amplitude = p.number(1);
+    const int speed = p.number(2);
+    check_range(name, "times", times, 1, kMaxBounceTimes);
+    check_range(name, "amplitude (cm)", amplitude, kMinMoveCm, kMaxMoveCm);
+    check_speed(name, speed);
+    const bool spin = p.has("cw") || p.has("ccw");
+    const double sign = p.pick({"cw", "ccw"}) == "cw" ? 1.0 : -1.0;
+    const double turn_per_bounce = 360.0 / times;
+
+    FigurePlan plan =
+        new_plan(name,
+                 std::to_string(times) + " times between " + std::to_string(kBounceLowCm) +
+                     " and " + std::to_string(kBounceLowCm + amplitude) + " cm" +
+                     (spin ? ", one turn " + std::string(p.pick({"cw", "ccw"})) : std::string()),
+                 speed);
+    plan.steps.push_back(FigureStep::move(0, 0, kBounceLowCm));
+    for (int i = 0; i < times; ++i)
+    {
+        plan.steps.push_back(FigureStep::move(0, 0, kBounceLowCm + amplitude));
+        if (spin)
+        {
+            plan.steps.push_back(FigureStep::face(sign * turn_per_bounce * (i + 0.5)));
+        }
+        plan.steps.push_back(FigureStep::move(0, 0, kBounceLowCm));
+        if (spin)
+        {
+            plan.steps.push_back(FigureStep::face(sign * turn_per_bounce * (i + 1)));
+        }
+    }
+    return plan;
+}
+
 } // namespace
 
 FigureStep FigureStep::move(double x_cm, double y_cm, double z_cm)
@@ -465,6 +516,10 @@ const std::vector<FigureSpec>& figure_specs()
          "take off, sink low (50 cm), then fly forward (300 cm) and up (200 cm) with video, "
          "camera forward: the view opens up; back to the center and land",
          plan_reveal},
+        {"bounce", "bounce [times] [amplitude] [cw|ccw] [speed]",
+         "take off, go up and down times (3) between 100 cm and 100 + amplitude (100 cm); with "
+         "cw or ccw it also makes one full turn on the way; land",
+         plan_bounce},
     };
     return specs;
 }
