@@ -5,6 +5,28 @@ Format: `## [version] — YYYY-MM-DD` followed by grouped changes. Written by `m
 
 ---
 
+## [0.1.0] — 2026-11-05
+
+### Added
+- **[TEL-00055]** cli: record the flight into a mission file
+- **[TEL-00054]** cli: add scan figure for walls
+- **[TEL-00053]** cli: add timelapse and hyperlapse with MP4 assembly
+- **[TEL-00052]** cli: add rings photo figure for 3D scans
+- **[TEL-00051]** cli: add polygon and star figures
+- **[TEL-00050]** cli: add figure eight video figure
+- **[TEL-00049]** cli: add boomerang video figure
+- **[TEL-00048]** cli: add helix video figure
+- **[TEL-00047]** cli: add flips show figure
+- **[TEL-00046]** cli: add bounce show figure
+- **[TEL-00045]** cli: add reveal video figure
+- **[TEL-00044]** cli: add dronie video figure
+- **[TEL-00043]** cli: add tower photo figure
+- **[TEL-00042]** cli: add panorama photo figure
+- **[TEL-00041]** cli: record figure flights to video with the video flag
+- **[TEL-00040]** cli: plan figures before flying and add dry run
+
+---
+
 ## [0.0.6] — 2026-11-04
 
 ### Added
