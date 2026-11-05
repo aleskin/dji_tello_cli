@@ -120,15 +120,25 @@ public:
     // Cheapest command that resets the drone's auto-land timer (Tello: 15 s of silence).
     virtual void keepalive();
 
+    // Last resort when the program is dying in the air (fatal signal, std::terminate): stop and
+    // land without waiting for replies. Must be async-signal-safe. Default: nothing possible.
+    virtual void land_now() noexcept
+    {
+    }
+
     // Time since the model last talked to the drone (zero before the first command);
     // FlightGuard sends keepalive() after a pause.
     [[nodiscard]] std::chrono::steady_clock::duration idle_for() const;
 
+    // Like idle_for(), but keepalive() does not count: time since the last real command.
+    // The hang watchdog uses it to tell a busy program from a stuck one.
+    [[nodiscard]] std::chrono::steady_clock::duration command_idle_for() const;
+
 protected:
     DroneBase() = default;
 
-    // Families call this for every command sent, reply or not.
-    void mark_activity();
+    // Families call this for every command sent, reply or not; keepalive passes false.
+    void mark_activity(bool command = true);
 
     // Throws NotSupported naming this model and the command.
     [[noreturn]] void unsupported(std::string_view command) const;
@@ -136,6 +146,7 @@ protected:
 private:
     // steady_clock ticks; atomic because the keepalive thread reads it while the CLI commands.
     std::atomic<std::chrono::steady_clock::rep> last_activity_{0};
+    std::atomic<std::chrono::steady_clock::rep> last_command_{0};
 };
 
 } // namespace drone

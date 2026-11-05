@@ -58,6 +58,13 @@ Opciones de inicio: `--host`, `--port`, `--state-port` (0 — sin telemetría), 
 - **Keepalive:** el dron aterriza solo tras 15 s sin comandos, por eso el programa le envía una
   señal mientras usted no escribe nada.
 - **Batería:** aviso al 15 %, aterrizaje automático al 10 % (configurable).
+- **Salida segura:** `exit`, Ctrl+D o el final de una misión con el dron en el aire aterrizan primero
+  y salen solo después del aterrizaje. Si falla, el programa sigue abierto (`land` o `emergency`;
+  un segundo `exit` sale de todos modos).
+- **Aterrizaje de emergencia:** si el programa muere en el aire (fallo, `kill`, terminal cerrado),
+  envía `land` antes y lo anota en el registro. Si un comando se cuelga 45 s, el dron también aterriza.
+- No cubierto: `kill -9`, portátil sin batería, pérdida del Wi-Fi — entonces el Tello aterriza solo
+  tras 15 s sin comandos.
 - **`emergency`** apaga los motores al instante, sin confirmación — el dron cae. Solo en caso extremo.
 - Vuele sobre una superficie blanda, lejos de personas y árboles; pruebe primero las figuras con `dry` (ver abajo).
 

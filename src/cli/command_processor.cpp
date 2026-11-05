@@ -116,6 +116,32 @@ std::string_view to_string(Category c)
     return "?";
 }
 
+namespace
+{
+
+// Leaves execute(): one level less, also on an exception.
+class RunningMark
+{
+public:
+    explicit RunningMark(std::atomic<int>& depth)
+        : depth_(depth)
+    {
+    }
+    RunningMark(const RunningMark&) = delete;
+    RunningMark& operator=(const RunningMark&) = delete;
+    RunningMark(RunningMark&&) = delete;
+    RunningMark& operator=(RunningMark&&) = delete;
+    ~RunningMark()
+    {
+        depth_.fetch_sub(1);
+    }
+
+private:
+    std::atomic<int>& depth_;
+};
+
+} // namespace
+
 CommandProcessor::CommandProcessor(drone::DroneBase& drone, std::ostream& out, SessionInfo session,
                                    const tello::StateListener* telemetry, Sleep sleep,
                                    Interrupted interrupted)
@@ -137,6 +163,20 @@ CommandProcessor::CommandProcessor(drone::DroneBase& drone, std::ostream& out, S
                                      }))
     , position_(drone_.make_position_source())
 {
+    sleep_ = [this, inner = std::move(sleep_)](std::chrono::milliseconds d)
+    {
+        pausing_.store(true);
+        try
+        {
+            inner(d);
+        }
+        catch (...)
+        {
+            mark_progress();
+            throw;
+        }
+        mark_progress();
+    };
     register_commands();
 }
 
@@ -662,8 +702,51 @@ const CommandProcessor::Entry* CommandProcessor::find(std::string_view name) con
     return nullptr;
 }
 
+void CommandProcessor::mark_progress()
+{
+    progress_.store(std::chrono::steady_clock::now().time_since_epoch().count());
+    pausing_.store(false);
+}
+
+std::chrono::steady_clock::duration CommandProcessor::stalled_for() const
+{
+    if (!airborne_.load() || running_.load() == 0 || pausing_.load())
+    {
+        return {};
+    }
+    const auto since = std::chrono::steady_clock::now() -
+                       std::chrono::steady_clock::time_point(
+                           std::chrono::steady_clock::duration(progress_.load()));
+    return std::min(since, drone_.command_idle_for());
+}
+
+bool CommandProcessor::land_before_exit()
+{
+    if (!airborne_)
+    {
+        return true;
+    }
+    if (leave_anyway_line_ == line_count_)
+    {
+        applog::warn("cli", "leaving with the drone in the air (landing failed)");
+        out_ << "leaving with the drone in the air\n";
+        return true;
+    }
+    applog::warn("cli", "exit in the air: landing first");
+    out_ << "in the air: landing before exit\n";
+    if (execute("land"))
+    {
+        return true;
+    }
+    exit_requested_ = false;
+    leave_anyway_line_ = line_count_ + 1;
+    out_ << "landing failed: try 'land' or 'emergency'; 'exit' again leaves anyway\n";
+    return false;
+}
+
 bool CommandProcessor::execute_line(std::string_view line)
 {
+    ++line_count_;
     applog::info("cli", "line: " + std::string(line));
     run_chain(line);
     return !exit_requested_;
@@ -781,6 +864,9 @@ void CommandProcessor::on_interrupt()
 
 bool CommandProcessor::execute(std::string_view command)
 {
+    running_.fetch_add(1);
+    mark_progress();
+    const RunningMark running(running_);
     auto words = split(command, " \t");
     const std::string_view name = words.front();
     const Args args(words.begin() + 1, words.end());

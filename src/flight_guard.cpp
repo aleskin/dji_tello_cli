@@ -10,11 +10,12 @@ namespace drone
 {
 
 FlightGuard::FlightGuard(DroneBase& drone, GuardSettings settings, BatterySource battery,
-                         Notify notify)
+                         Notify notify, StallProbe stalled)
     : drone_(drone)
     , settings_(settings)
     , battery_(std::move(battery))
     , notify_(std::move(notify))
+    , stalled_(std::move(stalled))
     , thread_(
           [this](const std::stop_token& stop)
           {
@@ -43,9 +44,45 @@ void FlightGuard::run(const std::stop_token& stop)
     while (!stop.stop_requested())
     {
         std::this_thread::sleep_for(settings_.check_period);
-        check_keepalive();
+        if (!check_stall())
+        {
+            check_keepalive();
+        }
         check_battery();
     }
+}
+
+bool FlightGuard::check_stall()
+{
+    const auto stalled = stalled_ ? stalled_() : std::chrono::steady_clock::duration{};
+    if (stalled <= std::chrono::steady_clock::duration::zero())
+    {
+        if (stuck_)
+        {
+            say("program responds again: keepalive back on");
+            stuck_ = false;
+        }
+        return false;
+    }
+    if (stuck_)
+    {
+        return true; // landing sent once; no keepalive until the program moves again
+    }
+    if (stalled < settings_.stuck_after)
+    {
+        return false;
+    }
+    stuck_ = true;
+    say("program stuck for " + applog::ms(stalled) + ": keepalive off, landing");
+    try
+    {
+        drone_.land();
+    }
+    catch (const DroneError& e)
+    {
+        say(std::string("landing failed: ") + e.what());
+    }
+    return true;
 }
 
 void FlightGuard::check_keepalive()

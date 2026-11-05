@@ -1,6 +1,8 @@
 #pragma once
 
+#include <array>
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -31,6 +33,17 @@ public:
     [[nodiscard]] std::uint16_t local_port() const;
 
     void send_to(std::string_view data, const std::string& host, std::uint16_t port) const;
+
+    // A destination resolved in advance, for send_now().
+    struct Peer
+    {
+        std::array<std::byte, 16> address{}; // sockaddr_in
+    };
+    [[nodiscard]] static Peer make_peer(const std::string& host, std::uint16_t port);
+
+    // Async-signal-safe (a crash handler may call it): no allocation, no exceptions, errors
+    // ignored.
+    void send_now(std::string_view data, const Peer& peer) const noexcept;
 
     // std::nullopt when nothing arrived within the timeout.
     [[nodiscard]] std::optional<Datagram> receive(std::chrono::milliseconds timeout) const;

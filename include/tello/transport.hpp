@@ -23,6 +23,12 @@ public:
 
     // Fire-and-forget: the drone does not answer some commands (rc).
     virtual void send(std::string_view command) = 0;
+
+    // Last resort from a crash handler: async-signal-safe, no lock, no log, no reply awaited.
+    // Default: not possible.
+    virtual void send_now(std::string_view /*command*/) noexcept
+    {
+    }
 };
 
 } // namespace tello

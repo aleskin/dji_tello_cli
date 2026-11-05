@@ -5,6 +5,7 @@
 
 #include <chrono>
 #include <deque>
+#include <functional>
 #include <optional>
 #include <string>
 #include <utility>
@@ -22,6 +23,10 @@ public:
     {
         requests.emplace_back(command);
         last_timeout = timeout;
+        if (on_request)
+        {
+            on_request(command);
+        }
         if (replies.empty())
         {
             return "ok";
@@ -40,6 +45,11 @@ public:
         sent.emplace_back(command);
     }
 
+    void send_now(std::string_view command) noexcept override
+    {
+        sent_now.emplace_back(command);
+    }
+
     void reply(std::optional<std::string> r)
     {
         replies.push_back(std::move(r));
@@ -47,8 +57,10 @@ public:
 
     std::vector<std::string> requests; // request(): commands that expect a reply
     std::vector<std::string> sent;     // send(): fire-and-forget commands
+    std::vector<std::string> sent_now; // send_now(): crash-handler sends
     std::deque<std::optional<std::string>> replies;
     std::chrono::milliseconds last_timeout{0};
+    std::function<void(std::string_view)> on_request; // runs inside request(), before the reply
 };
 
 } // namespace tello::test

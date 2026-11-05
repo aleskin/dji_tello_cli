@@ -29,7 +29,13 @@ UdpTransport::UdpTransport(std::string host, std::uint16_t port)
     : host_(std::move(host))
     , port_(port)
     , socket_("0.0.0.0", 0)
+    , peer_(UdpSocket::make_peer(host_, port_))
 {
+}
+
+void UdpTransport::send_now(std::string_view command) noexcept
+{
+    socket_.send_now(command, peer_);
 }
 
 void UdpTransport::flush_repeats_locked()

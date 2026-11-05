@@ -129,7 +129,18 @@ public:
     // Ctrl+C policy: in the air it lands (never quits with a flying drone), on the ground nothing.
     void on_interrupt();
 
+    // Before leaving the program (exit, Ctrl+D, end of input or mission, fatal error):
+    // in the air it lands first. False when that landing failed: the caller stays in the shell
+    // (piped input and missions exit with an error). An exit right after a failed landing leaves.
+    bool land_before_exit();
+
+    // How long a command has been running in the air without talking to the drone and outside
+    // its planned pauses; zero when no command runs, in a pause or on the ground.
+    // Read by the hang watchdog (FlightGuard) from its thread.
+    [[nodiscard]] std::chrono::steady_clock::duration stalled_for() const;
+
     // After a successful takeoff until a successful land/emergency.
+    // Lock-free: the crash handler reads it from a signal handler.
     [[nodiscard]] bool airborne() const
     {
         return airborne_.load();
@@ -200,6 +211,7 @@ private:
 
     // True on success, false when the chain must stop.
     bool execute(std::string_view command);
+    void mark_progress();
     bool run_mission_lines(std::istream& in, std::string_view name);
     [[nodiscard]] const Entry* find(std::string_view name) const;
     [[nodiscard]] bool available(const CommandInfo& info) const;
@@ -244,7 +256,12 @@ private:
     std::vector<Entry> entries_;
     std::vector<CommandInfo> commands_;
     bool exit_requested_ = false;
-    std::atomic<bool> airborne_{false}; // read by the telemetry log thread
+    int line_count_ = 0;               // execute_line() calls
+    int leave_anyway_line_ = -1;       // the line on which 'exit' leaves despite a failed landing
+    std::atomic<int> running_{0};      // execute() depth
+    std::atomic<bool> pausing_{false}; // inside sleep_: a planned pause
+    std::atomic<std::chrono::steady_clock::rep> progress_{0}; // last command start / pause end
+    std::atomic<bool> airborne_{false};                       // read by the telemetry log thread
     bool in_mission_ = false;
     std::unique_ptr<video::VideoStream> video_; // between "video start" and "video stop"
     video::ViewerFactory viewer_factory_;

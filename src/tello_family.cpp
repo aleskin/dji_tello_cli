@@ -8,6 +8,7 @@
 #include <cctype>
 #include <charconv>
 #include <cstdlib>
+#include <ctime>
 #include <utility>
 
 namespace tello
@@ -196,9 +197,20 @@ std::string TelloFamily::tof_distance()
     return query("tof?");
 }
 
+void TelloFamily::land_now() noexcept
+{
+    transport_->send_now("rc 0 0 0 0");
+    for (int i = 0; i < 3; ++i)
+    {
+        transport_->send_now("land");
+        const timespec pause{0, 100'000'000};
+        ::nanosleep(&pause, nullptr);
+    }
+}
+
 void TelloFamily::keepalive()
 {
-    expect_ok("command");
+    expect_ok("command", false);
 }
 
 void TelloFamily::start_video()
@@ -221,9 +233,9 @@ void TelloFamily::set_video_port(std::uint16_t port)
     video_port_ = port;
 }
 
-void TelloFamily::expect_ok(const std::string& command)
+void TelloFamily::expect_ok(const std::string& command, bool counts_as_command)
 {
-    mark_activity();
+    mark_activity(counts_as_command);
     const std::string reply = transport_->request(command, timeouts_.action);
     if (reply != "ok")
     {

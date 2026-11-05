@@ -187,9 +187,25 @@ std::chrono::steady_clock::duration DroneBase::idle_for() const
     return std::chrono::steady_clock::now() - last;
 }
 
-void DroneBase::mark_activity()
+std::chrono::steady_clock::duration DroneBase::command_idle_for() const
 {
-    last_activity_.store(std::chrono::steady_clock::now().time_since_epoch().count());
+    if (last_command_.load() == 0)
+    {
+        return {};
+    }
+    const auto last = std::chrono::steady_clock::time_point(
+        std::chrono::steady_clock::duration(last_command_.load()));
+    return std::chrono::steady_clock::now() - last;
+}
+
+void DroneBase::mark_activity(bool command)
+{
+    const auto now = std::chrono::steady_clock::now().time_since_epoch().count();
+    last_activity_.store(now);
+    if (command)
+    {
+        last_command_.store(now);
+    }
 }
 
 std::unique_ptr<PositionSource> DroneBase::make_position_source() const

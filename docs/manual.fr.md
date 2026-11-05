@@ -59,6 +59,13 @@ Options de lancement : `--host`, `--port`, `--state-port` (0 — sans télémét
 - **Keepalive :** le drone atterrit seul après 15 s sans commande, c'est pourquoi le programme lui
   envoie un signal tant que vous ne tapez rien.
 - **Batterie :** avertissement à 15 %, atterrissage automatique à 10 % (réglable).
+- **Sortie sûre :** `exit`, Ctrl+D ou la fin d'une mission avec le drone en l'air atterrissent d'abord
+  et ne quittent qu'après l'atterrissage. En cas d'échec, le programme reste ouvert (`land` ou
+  `emergency` ; un second `exit` quitte quand même).
+- **Atterrissage d'urgence :** si le programme meurt en vol (plantage, `kill`, terminal fermé), il
+  envoie `land` avant et le note dans le journal. Si une commande bloque 45 s, le drone atterrit aussi.
+- Non couvert : `kill -9`, portable à plat, perte du Wi-Fi — le Tello atterrit alors seul après 15 s
+  sans commande.
 - **`emergency`** coupe les moteurs immédiatement, sans confirmation — le drone tombe. Uniquement en dernier recours.
 - Volez au-dessus d'un sol meuble, loin des personnes et des arbres ; essayez d'abord les figures avec `dry` (voir plus bas).
 

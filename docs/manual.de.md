@@ -59,6 +59,13 @@ Startoptionen: `--host`, `--port`, `--state-port` (0 — ohne Telemetrie), `--vi
 - **Keepalive:** Die Drohne landet nach 15 s ohne Befehl von selbst, deshalb sendet das Programm
   ihr ein Signal, solange Sie nichts eingeben.
 - **Akku:** Warnung bei 15 %, automatische Landung bei 10 % (einstellbar).
+- **Sicheres Beenden:** `exit`, Strg+D oder das Ende einer Mission in der Luft landen zuerst und
+  beenden erst nach der Landung. Klappt die Landung nicht, bleibt das Programm offen (`land` oder
+  `emergency`; ein zweites `exit` beendet trotzdem).
+- **Notlandung:** Stürzt das Programm in der Luft ab (Fehler, `kill`, Terminal geschlossen), sendet es
+  vorher `land` und vermerkt das im Flugprotokoll. Hängt ein Befehl 45 s, landet die Drohne ebenfalls.
+- Nicht abgedeckt: `kill -9`, leerer Laptop-Akku, WLAN-Verlust — dann landet die Tello nach 15 s
+  ohne Befehle von selbst.
 - **`emergency`** schaltet die Motoren sofort und ohne Rückfrage ab — die Drohne fällt. Nur im Notfall.
 - Fliegen Sie über weichem Untergrund, fern von Menschen und Bäumen; neue Figuren zuerst mit `dry` (siehe unten).
 

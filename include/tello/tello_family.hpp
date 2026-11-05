@@ -77,7 +77,8 @@ public:
     [[nodiscard]] std::string barometer() override;    // metres
     [[nodiscard]] std::string tof_distance() override; // "100mm"
 
-    void keepalive() override; // "command": harmless in SDK mode, resets the 15 s timer
+    void land_now() noexcept override; // "rc 0 0 0 0", then "land" three times, 100 ms apart
+    void keepalive() override;         // "command": harmless in SDK mode, resets the 15 s timer
 
     void start_video() override; // "streamon"
     void stop_video() override;  // "streamoff"
@@ -93,7 +94,7 @@ public:
 protected:
     TelloFamily(std::shared_ptr<ITransport> transport, DroneTimeouts timeouts);
 
-    void expect_ok(const std::string& command);
+    void expect_ok(const std::string& command, bool counts_as_command = true);
     std::string query(std::string_view command);
     int query_int(std::string_view command);
 

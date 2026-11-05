@@ -103,6 +103,23 @@ void UdpSocket::send_to(std::string_view data, const std::string& host, std::uin
     }
 }
 
+UdpSocket::Peer UdpSocket::make_peer(const std::string& host, std::uint16_t port)
+{
+    const sockaddr_in addr = make_addr(host, port);
+    static_assert(sizeof(addr) == sizeof(Peer::address));
+    Peer peer;
+    std::memcpy(peer.address.data(), &addr, sizeof(addr));
+    return peer;
+}
+
+void UdpSocket::send_now(std::string_view data, const Peer& peer) const noexcept
+{
+    sockaddr_in addr{};
+    std::memcpy(&addr, peer.address.data(), sizeof(addr));
+    [[maybe_unused]] const ssize_t sent = ::sendto(
+        fd_, data.data(), data.size(), 0, reinterpret_cast<const sockaddr*>(&addr), sizeof(addr));
+}
+
 std::optional<Datagram> UdpSocket::receive(std::chrono::milliseconds timeout) const
 {
     pollfd pfd{fd_, POLLIN, 0};

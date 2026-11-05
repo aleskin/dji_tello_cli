@@ -158,10 +158,13 @@ if(TELLO_BUILD_TESTS)
         tests/test_figures.cpp
         tests/test_photo_figures.cpp
         tests/test_log.cpp
+        tests/test_safe_exit.cpp
     )
     target_include_directories(tello_tests PRIVATE tests)
     target_link_libraries(tello_tests PRIVATE tello_sim tello_cli_core tello_window PkgConfig::FFMPEG GTest::gtest_main)
     tello_strict(tello_tests)
+    add_dependencies(tello_tests tello_cli)
+    target_compile_definitions(tello_tests PRIVATE TELLO_CLI_PATH="$<TARGET_FILE:tello_cli>")
     include(GoogleTest)
     gtest_discover_tests(tello_tests)
 endif()

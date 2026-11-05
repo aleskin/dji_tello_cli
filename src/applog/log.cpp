@@ -262,6 +262,27 @@ void note_signal(int signal) noexcept
     [[maybe_unused]] const ssize_t written = ::write(fd, text.data(), n);
 }
 
+void note(const char* text) noexcept
+{
+    const int fd = g_fd.load();
+    if (fd < 0 || text == nullptr)
+    {
+        return;
+    }
+    std::array<char, 256> line{};
+    std::size_t n = 0;
+    for (const char* p = "*** "; *p != '\0'; ++p)
+    {
+        line.at(n++) = *p;
+    }
+    for (const char* p = text; *p != '\0' && n + 1 < line.size(); ++p)
+    {
+        line.at(n++) = *p;
+    }
+    line.at(n++) = '\n';
+    [[maybe_unused]] const ssize_t written = ::write(fd, line.data(), n);
+}
+
 std::string ms(std::chrono::steady_clock::duration d)
 {
     return std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(d).count()) + " ms";

@@ -57,6 +57,9 @@ void set_thread_name(std::string name);
 // Async-signal-safe: notes a fatal signal in the open log (from a signal handler).
 void note_signal(int signal) noexcept;
 
+// Async-signal-safe: one raw line "*** <text>" in the open log (from a signal handler).
+void note(const char* text) noexcept;
+
 // "1234 ms"
 [[nodiscard]] std::string ms(std::chrono::steady_clock::duration d);
 

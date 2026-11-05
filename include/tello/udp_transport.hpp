@@ -23,11 +23,13 @@ public:
 
     std::string request(std::string_view command, std::chrono::milliseconds timeout) override;
     void send(std::string_view command) override;
+    void send_now(std::string_view command) noexcept override;
 
 private:
     std::string host_;
     std::uint16_t port_;
     UdpSocket socket_;
+    UdpSocket::Peer peer_;  // the drone, resolved up front for send_now()
     std::mutex mutex_;      // one request in flight: replies carry no id
     std::string last_sent_; // fire-and-forget repeats (rc at 20 Hz) are logged once
     int repeats_ = 0;

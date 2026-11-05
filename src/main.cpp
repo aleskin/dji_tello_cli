@@ -78,17 +78,61 @@ bool run_line(cli::CommandProcessor& processor, const std::string& line)
     return go_on;
 }
 
-// Fatal signals: note them in the log, then die the default way (core dump, exit status).
+// What the crash handlers land: set while the session runs. Lock-free atomics, so a signal
+// handler may read them.
+// NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
+std::atomic<drone::DroneBase*> g_drone{nullptr};
+std::atomic<const cli::CommandProcessor*> g_processor{nullptr};
+// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
+static_assert(std::atomic<drone::DroneBase*>::is_always_lock_free);
+static_assert(std::atomic<const cli::CommandProcessor*>::is_always_lock_free);
+
+// Registers the session's drone for emergency_land() for its lifetime.
+class EmergencyTarget
+{
+public:
+    EmergencyTarget(drone::DroneBase& drone, const cli::CommandProcessor& processor)
+    {
+        g_drone.store(&drone);
+        g_processor.store(&processor);
+    }
+    EmergencyTarget(const EmergencyTarget&) = delete;
+    EmergencyTarget& operator=(const EmergencyTarget&) = delete;
+    EmergencyTarget(EmergencyTarget&&) = delete;
+    EmergencyTarget& operator=(EmergencyTarget&&) = delete;
+    ~EmergencyTarget()
+    {
+        g_processor.store(nullptr);
+        g_drone.store(nullptr);
+    }
+};
+
+// The program is dying: if the drone is in the air, send it down (once, async-signal-safe).
+void emergency_land() noexcept
+{
+    const cli::CommandProcessor* processor = g_processor.exchange(nullptr);
+    drone::DroneBase* drone = g_drone.load();
+    if (processor == nullptr || drone == nullptr || !processor->airborne())
+    {
+        return;
+    }
+    applog::note("EMERGENCY: program dying with the drone in the air, sending land");
+    drone->land_now();
+}
+
+// Fatal signals: note them in the log, land a flying drone, then die the default way
+// (core dump, exit status).
 extern "C" void on_fatal_signal(int sig)
 {
     applog::note_signal(sig);
+    emergency_land();
     std::signal(sig, SIG_DFL);
     std::raise(sig);
 }
 
 void install_crash_logging()
 {
-    for (const int sig : {SIGSEGV, SIGABRT, SIGFPE, SIGBUS, SIGILL, SIGTERM})
+    for (const int sig : {SIGSEGV, SIGABRT, SIGFPE, SIGBUS, SIGILL, SIGTERM, SIGHUP, SIGQUIT})
     {
         struct sigaction sa{};
         sa.sa_handler = on_fatal_signal;
@@ -116,6 +160,7 @@ void install_crash_logging()
             {
                 applog::error("main", "std::terminate: uncaught unknown exception");
             }
+            emergency_land();
             std::abort();
         });
 }
@@ -387,6 +432,14 @@ std::optional<int> telemetry_battery(const tello::StateListener* telemetry)
     return snap->state.bat;
 }
 
+drone::FlightGuard::StallProbe stall_probe(const cli::CommandProcessor& processor)
+{
+    return [&processor]
+    {
+        return processor.stalled_for();
+    };
+}
+
 // --mission: same guard and Ctrl+C rules as the shell. Exit code 0 only if every line succeeded.
 int run_mission_file(drone::DroneBase& drone, cli::CommandProcessor& processor,
                      const tello::StateListener* telemetry, const drone::GuardSettings& settings,
@@ -409,14 +462,16 @@ int run_mission_file(drone::DroneBase& drone, cli::CommandProcessor& processor,
         {
             const std::scoped_lock lock(out_mutex);
             std::cout << "! " << m << '\n' << std::flush;
-        });
+        },
+        stall_probe(processor));
     g_interrupted.store(false);
     const bool ok = processor.run_mission(file, path);
     if (g_interrupted.exchange(false))
     {
         processor.on_interrupt();
     }
-    return ok ? EXIT_SUCCESS : EXIT_FAILURE;
+    const bool landed = processor.land_before_exit();
+    return ok && landed ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
 int run(drone::DroneBase& drone, cli::CommandProcessor& processor,
@@ -430,12 +485,14 @@ int run(drone::DroneBase& drone, cli::CommandProcessor& processor,
     {
         // Piped input: one command line per input line, no editing.
         std::mutex out_mutex;
-        drone::FlightGuard guard(drone, settings, battery,
-                                 [&out_mutex](const std::string& m)
-                                 {
-                                     const std::scoped_lock lock(out_mutex);
-                                     std::cout << "! " << m << '\n' << std::flush;
-                                 });
+        drone::FlightGuard guard(
+            drone, settings, battery,
+            [&out_mutex](const std::string& m)
+            {
+                const std::scoped_lock lock(out_mutex);
+                std::cout << "! " << m << '\n' << std::flush;
+            },
+            stall_probe(processor));
         std::string line;
         while (std::getline(std::cin, line))
         {
@@ -444,7 +501,7 @@ int run(drone::DroneBase& drone, cli::CommandProcessor& processor,
                 break;
             }
         }
-        return EXIT_SUCCESS;
+        return processor.land_before_exit() ? EXIT_SUCCESS : EXIT_FAILURE;
     }
 
     replxx::Replxx rx;
@@ -455,11 +512,13 @@ int run(drone::DroneBase& drone, cli::CommandProcessor& processor,
         rx.history_load(history);
     }
     // Keepalive and low-battery landing; messages are printed above the prompt.
-    drone::FlightGuard guard(drone, settings, battery,
-                             [&rx](const std::string& m)
-                             {
-                                 rx.print("! %s\n", m.c_str());
-                             });
+    drone::FlightGuard guard(
+        drone, settings, battery,
+        [&rx](const std::string& m)
+        {
+            rx.print("! %s\n", m.c_str());
+        },
+        stall_probe(processor));
     rx.set_max_history_size(1000);
     rx.set_completion_callback(
         [&processor](const std::string& input, int& context_len)
@@ -478,7 +537,11 @@ int run(drone::DroneBase& drone, cli::CommandProcessor& processor,
                 processor.on_interrupt(); // Ctrl+C at the prompt: land if in the air
                 continue;
             }
-            break; // Ctrl+D
+            if (processor.land_before_exit())
+            {
+                break; // Ctrl+D
+            }
+            continue;
         }
         const std::string line(input);
         if (line.find_first_not_of(" \t") == std::string::npos)
@@ -486,7 +549,7 @@ int run(drone::DroneBase& drone, cli::CommandProcessor& processor,
             continue;
         }
         rx.history_add(line);
-        if (!run_line(processor, line))
+        if (!run_line(processor, line) && processor.land_before_exit())
         {
             break;
         }
@@ -581,9 +644,25 @@ int run_session(int argc, char** argv, Options& opt)
             << ':' << opt.drone.port << ". 'help' lists commands.\n"
             << std::flush;
     processor.execute_line("connect"); // SDK mode; on failure 'connect' can be retried
-    const int code = opt.mission.empty() ? run(*drone, processor, telemetry.get(), opt.guard)
-                                         : run_mission_file(*drone, processor, telemetry.get(),
-                                                            opt.guard, opt.mission);
+    const EmergencyTarget emergency(*drone, processor);
+    int code = EXIT_FAILURE;
+    try
+    {
+        code = opt.mission.empty()
+                   ? run(*drone, processor, telemetry.get(), opt.guard)
+                   : run_mission_file(*drone, processor, telemetry.get(), opt.guard, opt.mission);
+    }
+    catch (...)
+    {
+        // A fatal error must not leave the drone flying: land (waiting for the reply), then fail.
+        if (processor.airborne())
+        {
+            applog::error("main", "fatal error in the air: landing before exit");
+            console << "tello: fatal error in the air: landing\n" << std::flush;
+            processor.land_before_exit();
+        }
+        throw;
+    }
     if (processor.airborne())
     {
         applog::warn("main", "leaving while the drone is still in the air");
