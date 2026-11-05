@@ -5,6 +5,14 @@ Format: `## [version] — YYYY-MM-DD` followed by grouped changes. Written by `m
 
 ---
 
+## [0.1.1] — 2026-11-05
+
+### Added
+- **[TEL-00057]** cli: land the drone when the program fails
+- **[TEL-00056]** cli: add session log for post-flight analysis
+
+---
+
 ## [0.1.0] — 2026-11-05
 
 ### Added
