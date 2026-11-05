@@ -26,6 +26,8 @@ struct Config
     std::optional<int> land_battery;
     std::optional<int> keyboard_speed;
     std::optional<int> joystick_deadzone;
+    std::optional<std::string> log_dir; // "off" disables the session log
+    std::optional<int> log_keep;
     KeyLayout keys;
 };
 

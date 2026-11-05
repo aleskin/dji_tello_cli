@@ -1,5 +1,7 @@
 #include "video/video_stream.hpp"
 
+#include "applog/log.hpp"
+
 extern "C"
 {
 #include <libavcodec/avcodec.h>
@@ -26,6 +28,8 @@ namespace video
 {
 namespace
 {
+
+constexpr auto kVideoGap = std::chrono::seconds(1); // longer silence goes to the log
 
 std::string av_error(int code)
 {
@@ -152,6 +156,8 @@ VideoStream::~VideoStream()
     }
     const std::scoped_lock lock(mutex_);
     close_output_locked();
+    applog::info("video", "closed " + source_ + " after " + std::to_string(status_.packets) +
+                              " packets, " + std::to_string(status_.frames) + " frames");
 }
 
 void VideoStream::start_recording(const std::filesystem::path& path)
@@ -188,6 +194,7 @@ std::filesystem::path VideoStream::close_output_locked()
     const bool wrote = output_->header_written;
     std::filesystem::path path = output_->path;
     output_.reset();
+    applog::info("video", "recording closed: " + path.string());
     status_.recording.clear();
     return wrote ? path : std::filesystem::path{};
 }
@@ -204,12 +211,14 @@ void VideoStream::open_output_locked()
     if (rc < 0 || out->context == nullptr)
     {
         status_.error = "cannot create " + path + ": " + av_error(rc);
+        applog::error("video", status_.error);
         return;
     }
     AVStream* st = avformat_new_stream(out->context, nullptr);
     if (st == nullptr || avcodec_parameters_copy(st->codecpar, input_->stream()->codecpar) < 0)
     {
         status_.error = "cannot set up the MP4 stream";
+        applog::error("video", status_.error);
         return;
     }
     st->codecpar->codec_tag = 0;
@@ -218,21 +227,26 @@ void VideoStream::open_output_locked()
     if (rc < 0)
     {
         status_.error = "cannot open " + path + ": " + av_error(rc);
+        applog::error("video", status_.error);
         return;
     }
     rc = avformat_write_header(out->context, nullptr);
     if (rc < 0)
     {
         status_.error = "cannot write MP4 header: " + av_error(rc);
+        applog::error("video", status_.error);
         return;
     }
     out->header_written = true;
     status_.recording = path;
+    applog::info("video", "recording to " + path);
     output_ = std::move(out);
 }
 
 void VideoStream::run(const std::stop_token& stop)
 {
+    applog::set_thread_name("video");
+    applog::info("video", "opening " + source_);
     av_log_set_level(AV_LOG_ERROR);
     auto input = std::make_unique<Input>();
     input->context = avformat_alloc_context();
@@ -240,6 +254,7 @@ void VideoStream::run(const std::stop_token& stop)
     {
         const std::scoped_lock lock(mutex_);
         status_.error = "out of memory";
+        applog::error("video", status_.error);
         return;
     }
     // FFmpeg polls this while it blocks on the socket: the destructor can always stop the thread.
@@ -263,6 +278,7 @@ void VideoStream::run(const std::stop_token& stop)
         input->context = nullptr; // freed by avformat_open_input on failure
         const std::scoped_lock lock(mutex_);
         status_.error = "cannot open " + source_ + ": " + av_error(rc);
+        applog::error("video", status_.error);
         return;
     }
     rc = avformat_find_stream_info(input->context, nullptr); // waits for SPS/PPS and a keyframe
@@ -272,6 +288,7 @@ void VideoStream::run(const std::stop_token& stop)
         if (!stop.stop_requested())
         {
             status_.error = "no H.264 stream on " + source_ + ": " + av_error(rc);
+            applog::error("video", status_.error);
         }
         return;
     }
@@ -281,6 +298,7 @@ void VideoStream::run(const std::stop_token& stop)
     {
         const std::scoped_lock lock(mutex_);
         status_.error = "no video in " + source_;
+        applog::error("video", status_.error);
         return;
     }
     // Decoder for photo and the live window; recording does not need it.
@@ -294,6 +312,7 @@ void VideoStream::run(const std::stop_token& stop)
     {
         const std::scoped_lock lock(mutex_);
         status_.error = "cannot open the H.264 decoder";
+        applog::error("video", status_.error);
         return;
     }
     {
@@ -301,6 +320,8 @@ void VideoStream::run(const std::stop_token& stop)
         status_.width = input->stream()->codecpar->width;
         status_.height = input->stream()->codecpar->height;
         input_ = std::move(input);
+        applog::info("video", "stream " + std::to_string(status_.width) + "x" +
+                                  std::to_string(status_.height) + " on " + source_);
     }
 
     std::unique_ptr<AVPacket, PacketDeleter> packet(av_packet_alloc());
@@ -334,8 +355,13 @@ void VideoStream::run(const std::stop_token& stop)
         }
         const std::scoped_lock lock(mutex_);
         {
+            const auto now = std::chrono::steady_clock::now();
+            if (status_.packets > 0 && now - last_packet_ > kVideoGap)
+            {
+                applog::warn("video", "no packets for " + applog::ms(now - last_packet_));
+            }
             ++status_.packets;
-            last_packet_ = std::chrono::steady_clock::now();
+            last_packet_ = now;
             // AV_PKT_FLAG_KEY is an int macro: test the bit on an unsigned copy.
             const bool key = (static_cast<unsigned>(packet->flags) &
                               static_cast<unsigned>(AV_PKT_FLAG_KEY)) != 0;
@@ -367,6 +393,7 @@ void VideoStream::run(const std::stop_token& stop)
                 if (rc < 0)
                 {
                     status_.error = "write failed: " + av_error(rc);
+                    applog::error("video", status_.error);
                     close_output_locked();
                 }
             }
@@ -491,6 +518,7 @@ void VideoStream::save_photo(const std::filesystem::path& path) const
     {
         throw std::runtime_error("photo: cannot write " + path.string());
     }
+    applog::info("video", "photo " + path.string());
 }
 
 void make_movie(const std::vector<std::filesystem::path>& frames, const std::filesystem::path& path,

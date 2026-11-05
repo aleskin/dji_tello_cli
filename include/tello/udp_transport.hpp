@@ -28,7 +28,10 @@ private:
     std::string host_;
     std::uint16_t port_;
     UdpSocket socket_;
-    std::mutex mutex_; // one request in flight: replies carry no id
+    std::mutex mutex_;      // one request in flight: replies carry no id
+    std::string last_sent_; // fire-and-forget repeats (rc at 20 Hz) are logged once
+    int repeats_ = 0;
+    void flush_repeats_locked();
 };
 
 } // namespace tello

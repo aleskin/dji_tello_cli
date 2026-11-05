@@ -49,7 +49,7 @@ Više komandi se piše u jednom redu, razdvojeno sa `;`; red se zaustavlja na pr
 `Tab` dopunjuje komande, strelice listaju istoriju.
 
 Opcije pokretanja: `--host`, `--port`, `--state-port` (0 — bez telemetrije), `--video-port`,
-`--model`, `--mission FAJL`.
+`--model`, `--mission FAJL`, `--log-dir FASCIKLA`, `--no-log`.
 
 ## 4. Bezbednost
 
@@ -66,7 +66,7 @@ Opcije pokretanja: `--host`, `--port`, `--state-port` (0 — bez telemetrije), `
 
 | Grupa | Komande |
 |---|---|
-| Sistem | `help [cmd]`, `version`, `info`, `wait <s>`, `alias`, `aliases`, `unalias <ime>`, `exit` |
+| Sistem | `help [cmd]`, `version`, `info`, `wait <s>`, `alias`, `aliases`, `unalias <ime>`, `exit`, `log` (putanja dnevnika sesije) |
 | Let | `connect`, `takeoff`, `land`, `hover` (EDU), `emergency` |
 | Kretanje | `forward/back/left/right/up/down <20..500 cm>`, `cw/ccw <1..360°>`, `flip <l\|r\|f\|b>`, `speed <10..100 cm/s>`, `go <x> <y> <z> <brzina>`, `return` / `home` (povratak iznad tačke poletanja i sletanje) |
 | Kamera ka tački | `camera_to_center <x> <y>`, `camera_from_center <x> <y>`, `orbit <50..500 cm> [cw\|ccw] [brzina]` (kruženje oko tačke ispred, u 12 deonica) |
@@ -185,10 +185,35 @@ warn_battery = 15        # procenti
 land_battery = 10
 kbspeed = 40             # tastatura, 10..100
 js_deadzone = 10         # gejmped, mrtva zona palice u procentima, 0..50
+log_dir = ~/.local/state/tello/logs   # dnevnici sesija; "off" = bez dnevnika
+log_keep = 30            # koliko poslednjih dnevnika čuvati
 key_forward = w          # i key_back/left/right/up/down/turn_left/turn_right
 ```
 
-## 12. Šta treba znati o Tellu
+## 12. Dnevnik leta
+
+Svako pokretanje piše tekstualni dnevnik za analizu posle leta, jedan fajl po sesiji:
+`~/.local/state/tello/logs/tello_GGGGMMDD_HHMMSS.log` (ili `$XDG_STATE_HOME/tello/logs`),
+čuva se 30 poslednjih. Komanda `log` prikazuje trenutni fajl; `--log-dir FASCIKLA` ili `log_dir`
+menjaju mesto, `--no-log` ili `log_dir = off` isključuju dnevnik. Zapisi se pišu odmah —
+pad programa ne gubi ništa.
+
+Šta je u dnevniku:
+- **zaglavlje sesije**: verzija, komandna linija, model, adresa i portovi, pragovi baterije;
+- **svaki uneti red i komanda** sa `begin` / `end ...: ok|failed: <razlog>|exception, N ms` —
+  `begin` bez `end` znači da je komanda zastala ili je program pao u njoj;
+- **svaka SDK komanda i odgovor drona** (`> takeoff`, `< ok  [takeoff, 2140 ms]`), istekla
+  vremena, zakasneli odgovori; ponovljene `rc` komande se broje, ne nabrajaju;
+- **pozicija** posle svake komande leta, **telemetrija** svake sekunde u vazduhu (svakih 10 s
+  na zemlji), `telemetry lost` / `telemetry back`;
+- **sve što je bilo na ekranu** (`console: ...`), upozorenja o bateriji, događaji video toka,
+  fotografije i snimci, Ctrl+C, greške i neočekivani izuzeci, fatalni signali (`*** FATAL signal N`).
+
+Red izgleda ovako: `2026-11-05 09:24:20.387 INFO  main     drone: > takeoff`
+(vreme, nivo `DEBUG/INFO/WARN/ERROR`, nit, komponenta). Traženje problema:
+`grep -E 'WARN|ERROR|FATAL' ~/.local/state/tello/logs/tello_*.log`.
+
+## 13. Šta treba znati o Tellu
 
 - **Kamera gleda samo napred i ne naginje se.** Tačka poletanja je u kadru samo ako je
   poluprečnik veći od otprilike dve visine. `loop` prolazi `poluprečnik` cm iza tačke poletanja —

@@ -50,7 +50,7 @@ Mehrere Befehle stehen in einer Zeile, getrennt durch `;`; die Zeile stoppt beim
 `Tab` ergänzt Befehle, die Pfeiltasten blättern im Verlauf.
 
 Startoptionen: `--host`, `--port`, `--state-port` (0 — ohne Telemetrie), `--video-port`,
-`--model`, `--mission DATEI`.
+`--model`, `--mission DATEI`, `--log-dir ORDNER`, `--no-log`.
 
 ## 4. Sicherheit
 
@@ -68,7 +68,7 @@ Startoptionen: `--host`, `--port`, `--state-port` (0 — ohne Telemetrie), `--vi
 
 | Gruppe | Befehle |
 |---|---|
-| System | `help [cmd]`, `version`, `info`, `wait <s>`, `alias`, `aliases`, `unalias <Name>`, `exit` |
+| System | `help [cmd]`, `version`, `info`, `wait <s>`, `alias`, `aliases`, `unalias <Name>`, `exit`, `log` (Pfad des Sitzungsprotokolls) |
 | Flug | `connect`, `takeoff`, `land`, `hover` (EDU), `emergency` |
 | Bewegung | `forward/back/left/right/up/down <20..500 cm>`, `cw/ccw <1..360°>`, `flip <l\|r\|f\|b>`, `speed <10..100 cm/s>`, `go <x> <y> <z> <Tempo>`, `return` / `home` (zurück über den Startpunkt und landen) |
 | Kamera auf einen Punkt | `camera_to_center <x> <y>`, `camera_from_center <x> <y>`, `orbit <50..500 cm> [cw\|ccw] [Tempo]` (Kreis um einen Punkt voraus, in 12 Abschnitten) |
@@ -187,10 +187,36 @@ warn_battery = 15        # Prozent
 land_battery = 10
 kbspeed = 40             # Tastatur, 10..100
 js_deadzone = 10         # Gamepad, tote Zone des Sticks in Prozent, 0..50
+log_dir = ~/.local/state/tello/logs   # Sitzungsprotokolle; "off" = kein Protokoll
+log_keep = 30            # so viele neueste Protokolle behalten
 key_forward = w          # und key_back/left/right/up/down/turn_left/turn_right
 ```
 
-## 12. Was man über die Tello wissen sollte
+## 12. Flugprotokoll
+
+Jeder Start schreibt ein Textprotokoll für die Auswertung nach dem Flug, eine Datei pro Sitzung:
+`~/.local/state/tello/logs/tello_JJJJMMTT_HHMMSS.log` (oder `$XDG_STATE_HOME/tello/logs`),
+die neuesten 30 bleiben erhalten. `log` zeigt die aktuelle Datei; `--log-dir ORDNER` oder
+`log_dir` ändern den Ort, `--no-log` oder `log_dir = off` schalten das Protokoll ab. Einträge
+werden sofort geschrieben — ein Absturz verliert nichts.
+
+Was drinsteht:
+- **Sitzungskopf**: Version, Befehlszeile, Modell, Adresse und Ports, Akkugrenzen;
+- **jede Eingabezeile und jeder Befehl** mit `begin` / `end ...: ok|failed: <Grund>|exception, N ms` —
+  ein `begin` ohne `end` heißt: der Befehl hing oder das Programm starb darin;
+- **jeder SDK-Befehl und jede Antwort** (`> takeoff`, `< ok  [takeoff, 2140 ms]`), Zeitüberschreitungen,
+  verspätete Antworten; wiederholte `rc`-Befehle werden gezählt, nicht einzeln aufgeführt;
+- **Position** nach jedem Flugbefehl, **Telemetrie** jede Sekunde in der Luft (alle 10 s am
+  Boden), `telemetry lost` / `telemetry back`;
+- **alles, was auf dem Bildschirm stand** (`console: ...`), Akkuwarnungen, Ereignisse des
+  Videostroms, Fotos und Aufnahmen, Strg+C, Fehler und unerwartete Ausnahmen, fatale Signale
+  (`*** FATAL signal N`).
+
+Eine Zeile sieht so aus: `2026-11-05 09:24:20.387 INFO  main     drone: > takeoff`
+(Zeit, Stufe `DEBUG/INFO/WARN/ERROR`, Thread, Komponente). Probleme finden:
+`grep -E 'WARN|ERROR|FATAL' ~/.local/state/tello/logs/tello_*.log`.
+
+## 13. Was man über die Tello wissen sollte
 
 - **Die Kamera schaut nur nach vorn und lässt sich nicht neigen.** Der Startpunkt ist nur im Bild,
   wenn der Radius größer als etwa die doppelte Höhe ist. `loop` fliegt `Radius` cm hinter dem

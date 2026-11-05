@@ -3,13 +3,17 @@
 #include "drone/errors.hpp"
 #include "tello/version.hpp"
 
+#include "applog/log.hpp"
+
 #include <algorithm>
 #include <array>
 #include <charconv>
 #include <cmath>
 #include <ctime>
 #include <fstream>
+#include <iomanip>
 #include <numbers>
+#include <sstream>
 #include <stdexcept>
 #include <thread>
 #include <utility>
@@ -155,6 +159,12 @@ void CommandProcessor::register_commands()
         [this](const Args&)
         {
             out_ << "tello " << tello::version() << '\n';
+        });
+    add({"log", {}, C::System, "log", "path of this session's log file", {}},
+        [this](const Args&)
+        {
+            const auto path = applog::current();
+            out_ << (path.empty() ? std::string("log is off") : path.string()) << '\n';
         });
     add({"info", {}, C::System, "info", "connection, drone model and its readings", {}},
         [this](const Args&)
@@ -654,6 +664,7 @@ const CommandProcessor::Entry* CommandProcessor::find(std::string_view name) con
 
 bool CommandProcessor::execute_line(std::string_view line)
 {
+    applog::info("cli", "line: " + std::string(line));
     run_chain(line);
     return !exit_requested_;
 }
@@ -679,6 +690,7 @@ CommandProcessor::Outcome CommandProcessor::run_chain(std::string_view line)
         }
         if (interrupted_())
         {
+            applog::warn("cli", "Ctrl+C: skipped '" + std::string(trim(rest)) + "'");
             out_ << "interrupted: rest of the line skipped\n";
             return Outcome::Interrupted;
         }
@@ -702,10 +714,15 @@ bool CommandProcessor::run_mission(std::istream& in, std::string_view name)
         return false;
     }
     in_mission_ = true;
+    applog::Scope scope("cli", "mission " + std::string(name));
     try
     {
         const bool ok = run_mission_lines(in, name);
         in_mission_ = false;
+        if (!ok)
+        {
+            scope.fail("stopped");
+        }
         return ok;
     }
     catch (...)
@@ -754,8 +771,10 @@ void CommandProcessor::on_interrupt()
 {
     if (!airborne_)
     {
+        applog::info("cli", "Ctrl+C on the ground");
         return;
     }
+    applog::warn("cli", "Ctrl+C in flight: landing");
     out_ << "Ctrl+C in flight: landing (type 'exit' to quit once landed)\n";
     execute("land");
 }
@@ -773,14 +792,17 @@ bool CommandProcessor::execute(std::string_view command)
         {
             return run_alias(alias->second, name, args);
         }
+        applog::warn("cli", "unknown command '" + std::string(name) + "'");
         out_ << "unknown command '" << name << "', see 'help'\n";
         return false;
     }
     if (!available(entry->info))
     {
+        applog::warn("cli", "'" + std::string(name) + "' is not supported by " + drone_.model());
         out_ << "'" << name << "' is not supported by " << drone_.model() << '\n';
         return false;
     }
+    applog::Scope scope("cli", "'" + std::string(command) + "'");
     const bool record = recordable(entry->info, args);
     const bool was_airborne = airborne_;
     std::optional<drone::Position> before;
@@ -793,6 +815,7 @@ bool CommandProcessor::execute(std::string_view command)
         if (!record)
         {
             entry->run(args);
+            log_position(entry->info);
             return true;
         }
         recording_busy_ = true;
@@ -807,21 +830,48 @@ bool CommandProcessor::execute(std::string_view command)
         }
         recording_busy_ = false;
         note_recorded(command, entry->info.name, before, was_airborne);
+        log_position(entry->info);
         return true;
     }
     catch (const UsageError& e)
     {
+        scope.fail(e.what());
         out_ << e.what() << '\n';
     }
     catch (const drone::NotSupported& e)
     {
+        scope.fail(e.what());
         out_ << e.what() << '\n';
     }
     catch (const drone::DroneError& e)
     {
+        scope.fail(e.what());
+        applog::error("cli", std::string(command) + ": " + e.what());
+        out_ << "error: " << e.what() << '\n';
+    }
+    catch (const std::exception& e)
+    {
+        // Not a drone error (file system, FFmpeg...): the command fails, the program goes on.
+        scope.fail(e.what());
+        applog::error("cli", std::string(command) + ": unexpected " + e.what());
         out_ << "error: " << e.what() << '\n';
     }
     return false;
+}
+
+void CommandProcessor::log_position(const CommandInfo& info) const
+{
+    if (!position_ || (info.category != Category::Flight && info.category != Category::Movement &&
+                       info.category != Category::Mission))
+    {
+        return;
+    }
+    const auto p = position_->position();
+    std::ostringstream text;
+    text << std::fixed << std::setprecision(0) << "position x=" << p.x_cm << " y=" << p.y_cm
+         << " z=" << p.z_cm << " heading=" << p.heading_deg << " error=" << p.error_cm
+         << (airborne_ ? " (in the air)" : " (landed)");
+    applog::info("cli", text.str());
 }
 
 std::vector<std::string> CommandProcessor::completions(std::string_view prefix) const

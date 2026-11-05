@@ -2,6 +2,8 @@
 
 #include "drone/errors.hpp"
 
+#include "applog/log.hpp"
+
 #include <utility>
 
 namespace drone
@@ -28,6 +30,7 @@ FlightGuard::~FlightGuard()
 
 void FlightGuard::say(const std::string& message) const
 {
+    applog::warn("guard", message);
     if (notify_)
     {
         notify_(message);
@@ -36,6 +39,7 @@ void FlightGuard::say(const std::string& message) const
 
 void FlightGuard::run(const std::stop_token& stop)
 {
+    applog::set_thread_name("guard");
     while (!stop.stop_requested())
     {
         std::this_thread::sleep_for(settings_.check_period);
@@ -61,6 +65,7 @@ void FlightGuard::check_keepalive()
     }
     catch (const NotSupported&)
     {
+        applog::info("guard", "keepalive not supported by " + drone_.model());
         keepalive_supported_ = false;
     }
     catch (const DroneError& e)

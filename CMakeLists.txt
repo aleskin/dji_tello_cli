@@ -32,6 +32,11 @@ function(tello_strict target)
     target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic -Werror)
 endfunction()
 
+# Session log (TEL-00056): every layer writes to it, the CLI opens the file.
+add_library(tello_log STATIC src/applog/log.cpp)
+target_include_directories(tello_log PUBLIC include)
+tello_strict(tello_log)
+
 # Drone library.
 add_library(tello STATIC
     src/version.cpp
@@ -46,7 +51,7 @@ add_library(tello STATIC
     src/state_listener.cpp
 )
 target_include_directories(tello PUBLIC include)
-target_link_libraries(tello PUBLIC Threads::Threads)
+target_link_libraries(tello PUBLIC tello_log Threads::Threads)
 target_compile_definitions(tello PRIVATE TELLO_VERSION="${TELLO_VERSION}")
 tello_strict(tello)
 
@@ -63,7 +68,7 @@ tello_strict(tello-sim)
 # Video: camera stream reader and MP4 recorder, vendor-neutral.
 add_library(tello_video STATIC src/video/video_stream.cpp src/video/viewer.cpp)
 target_include_directories(tello_video PUBLIC include)
-target_link_libraries(tello_video PUBLIC Threads::Threads PRIVATE PkgConfig::FFMPEG)
+target_link_libraries(tello_video PUBLIC tello_log Threads::Threads PRIVATE PkgConfig::FFMPEG)
 tello_strict(tello_video)
 
 # Live picture window (SDL2), plugged into the CLI binary; the command layer stays SDL-free.
@@ -72,7 +77,8 @@ target_link_libraries(tello_window PUBLIC tello_video PRIVATE PkgConfig::SDL2)
 tello_strict(tello_window)
 
 # CLI: command layer as a library (tested), the binary adds line editing (replxx).
-add_library(tello_cli_core STATIC src/cli/command_processor.cpp src/cli/config.cpp src/cli/figure_plan.cpp)
+add_library(tello_cli_core STATIC src/cli/command_processor.cpp src/cli/config.cpp src/cli/figure_plan.cpp
+    src/cli/flight_log.cpp)
 target_include_directories(tello_cli_core PUBLIC src)
 target_link_libraries(tello_cli_core PUBLIC tello tello_video)
 tello_strict(tello_cli_core)
@@ -151,6 +157,7 @@ if(TELLO_BUILD_TESTS)
         tests/test_position.cpp
         tests/test_figures.cpp
         tests/test_photo_figures.cpp
+        tests/test_log.cpp
     )
     target_include_directories(tello_tests PRIVATE tests)
     target_link_libraries(tello_tests PRIVATE tello_sim tello_cli_core tello_window PkgConfig::FFMPEG GTest::gtest_main)

@@ -49,7 +49,7 @@ Se pueden poner varios comandos en una línea separados por `;`; la línea se de
 error. `Tab` completa los comandos, las flechas recorren el historial.
 
 Opciones de inicio: `--host`, `--port`, `--state-port` (0 — sin telemetría), `--video-port`,
-`--model`, `--mission ARCHIVO`.
+`--model`, `--mission ARCHIVO`, `--log-dir CARPETA`, `--no-log`.
 
 ## 4. Seguridad
 
@@ -67,7 +67,7 @@ Opciones de inicio: `--host`, `--port`, `--state-port` (0 — sin telemetría), 
 
 | Grupo | Comandos |
 |---|---|
-| Sistema | `help [cmd]`, `version`, `info`, `wait <s>`, `alias`, `aliases`, `unalias <nombre>`, `exit` |
+| Sistema | `help [cmd]`, `version`, `info`, `wait <s>`, `alias`, `aliases`, `unalias <nombre>`, `exit`, `log` (ruta del registro de la sesión) |
 | Vuelo | `connect`, `takeoff`, `land`, `hover` (EDU), `emergency` |
 | Movimiento | `forward/back/left/right/up/down <20..500 cm>`, `cw/ccw <1..360°>`, `flip <l\|r\|f\|b>`, `speed <10..100 cm/s>`, `go <x> <y> <z> <velocidad>`, `return` / `home` (volver sobre el punto de despegue y aterrizar) |
 | Cámara hacia un punto | `camera_to_center <x> <y>`, `camera_from_center <x> <y>`, `orbit <50..500 cm> [cw\|ccw] [velocidad]` (vuelta alrededor de un punto delante, en 12 tramos) |
@@ -187,10 +187,36 @@ warn_battery = 15        # por ciento
 land_battery = 10
 kbspeed = 40             # teclado, 10..100
 js_deadzone = 10         # mando, zona muerta del stick en por ciento, 0..50
+log_dir = ~/.local/state/tello/logs   # registros de sesión; "off" = sin registro
+log_keep = 30            # cuántos registros recientes conservar
 key_forward = w          # y key_back/left/right/up/down/turn_left/turn_right
 ```
 
-## 12. Lo que hay que saber del Tello
+## 12. Registro de vuelo
+
+Cada ejecución escribe un registro de texto para el análisis tras el vuelo, un archivo por sesión:
+`~/.local/state/tello/logs/tello_AAAAMMDD_HHMMSS.log` (o `$XDG_STATE_HOME/tello/logs`),
+se conservan los 30 más recientes. `log` muestra el archivo actual; `--log-dir CARPETA` o
+`log_dir` cambian el lugar, `--no-log` o `log_dir = off` lo desactivan. Las entradas se escriben
+al momento: un fallo del programa no pierde nada.
+
+Qué contiene:
+- **cabecera de la sesión**: versión, línea de comandos, modelo, dirección y puertos, límites de batería;
+- **cada línea introducida y cada comando** con `begin` / `end ...: ok|failed: <motivo>|exception, N ms` —
+  un `begin` sin `end` significa que el comando se colgó o que el programa murió en él;
+- **cada comando SDK y cada respuesta** (`> takeoff`, `< ok  [takeoff, 2140 ms]`), tiempos de
+  espera agotados, respuestas tardías; los `rc` repetidos se cuentan, no se listan;
+- **posición** tras cada comando de vuelo, **telemetría** cada segundo en el aire (cada 10 s en
+  tierra), `telemetry lost` / `telemetry back`;
+- **todo lo que salió en pantalla** (`console: ...`), avisos de batería, eventos del flujo de
+  vídeo, fotos y grabaciones, Ctrl+C, errores y excepciones inesperadas, señales fatales
+  (`*** FATAL signal N`).
+
+Una línea es así: `2026-11-05 09:24:20.387 INFO  main     drone: > takeoff`
+(hora, nivel `DEBUG/INFO/WARN/ERROR`, hilo, componente). Buscar problemas:
+`grep -E 'WARN|ERROR|FATAL' ~/.local/state/tello/logs/tello_*.log`.
+
+## 13. Lo que hay que saber del Tello
 
 - **La cámara mira solo hacia delante y no se inclina.** El punto de despegue solo aparece en la
   imagen si el radio es mayor que unas dos veces la altura. `loop` pasa `radio` cm por detrás del

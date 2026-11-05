@@ -27,6 +27,15 @@ TEST(ConfigTest, EmptyKeepsDefaults)
     EXPECT_EQ(c.config.keys.forward, "w");
 }
 
+TEST(ConfigTest, ReadsLogKeys)
+{
+    const auto c = parse("log_dir = /tmp/tello logs\nlog_keep = 5\n");
+    EXPECT_TRUE(c.warnings.empty());
+    EXPECT_EQ(c.config.log_dir, "/tmp/tello logs");
+    EXPECT_EQ(c.config.log_keep, 5);
+    EXPECT_EQ(parse("log_keep = 0\n").warnings.size(), 1U);
+}
+
 TEST(ConfigTest, ReadsEveryKey)
 {
     const auto c = parse("host = 127.0.0.1\n"

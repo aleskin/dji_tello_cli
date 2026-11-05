@@ -63,7 +63,7 @@ tello> land
 ```
 
 Options: `--host`, `--port`, `--state-port` (0 = no telemetry), `--video-port`, `--model`,
-`--mission FILE`.
+`--mission FILE`, `--log-dir DIR`, `--no-log`.
 
 ## Commands
 
@@ -72,7 +72,7 @@ line separated by `;`; the line stops at the first error.
 
 | Group | Commands |
 |---|---|
-| System | `help [cmd]`, `version`, `info`, `wait <s>`, `alias`, `aliases`, `unalias <name>`, `exit` |
+| System | `help [cmd]`, `version`, `info`, `wait <s>`, `alias`, `aliases`, `unalias <name>`, `exit`, `log` (path of the session log) |
 | Flight | `connect`, `takeoff`, `land`, `hover` (EDU), `emergency` (motors off, no confirmation) |
 | Movement | `forward/back/left/right/up/down <20..500 cm>`, `cw/ccw <1..360>`, `flip <l\|r\|f\|b>`, `speed <10..100>`, `go <x> <y> <z> <speed>`, `return` / `home` (fly back above the takeoff point, then `land`) |
 | Figures | `camera_to_center <x> <y>` / `camera_from_center <x> <y>` (turn the camera towards / away from a point, cm as `position` shows), `orbit <50..500 cm> [cw\|ccw] [speed]` / `circle` (circle the point that far ahead in 12 legs of 30°, camera to the center) |
@@ -147,8 +147,32 @@ warn_battery = 15        # percent
 land_battery = 10
 kbspeed = 40             # keyboard mode, 10..100
 js_deadzone = 10         # joystick mode, percent of stick travel ignored, 0..50
+log_dir = ~/.local/state/tello/logs   # session logs; "off" = no log
+log_keep = 30            # keep this many newest logs
 key_forward = w          # also key_back/left/right/up/down/turn_left/turn_right (SDL key names)
 ```
+
+## Session log
+
+Every run writes a text log for post-flight analysis, one file per session:
+`~/.local/state/tello/logs/tello_YYYYMMDD_HHMMSS.log` (`$XDG_STATE_HOME/tello/logs` if set),
+the newest 30 are kept. `log` prints the current file; `--log-dir DIR` or `log_dir` moves it,
+`--no-log` or `log_dir = off` turns it off. Records are written at once, a crash loses nothing.
+
+What is in it:
+- **session header**: version, command line, model, address and ports, battery limits;
+- **every input line and command** with `begin` / `end ...: ok|failed: <why>|exception, N ms` —
+  a `begin` without an `end` means the command hung or the program died in it;
+- **every SDK command and reply** (`> takeoff`, `< ok  [takeoff, 2140 ms]`), timeouts,
+  late replies; repeated `rc` commands are counted, not listed;
+- **position** after each flight command, **telemetry** every second in the air (every 10 s on the
+  ground), `telemetry lost` / `telemetry back`;
+- **everything shown on the console** (`console: ...`), guard warnings, video stream events,
+  photos and recordings, Ctrl+C, errors and unexpected exceptions, fatal signals (`*** FATAL signal N`).
+
+Lines look like `2026-11-05 09:24:20.387 INFO  main     drone: > takeoff`
+(time, level `DEBUG/INFO/WARN/ERROR`, thread, component). To look for problems:
+`grep -E 'WARN|ERROR|FATAL' ~/.local/state/tello/logs/tello_*.log`.
 
 ## Architecture
 

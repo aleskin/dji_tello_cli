@@ -1,7 +1,9 @@
 // tello: interactive controller. Talks to the drone only through drone::DroneBase.
 
+#include "applog/log.hpp"
 #include "cli/command_processor.hpp"
 #include "cli/config.hpp"
+#include "cli/flight_log.hpp"
 #include "drone/errors.hpp"
 #include "drone/factory.hpp"
 #include "drone/flight_guard.hpp"
@@ -27,6 +29,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <streambuf>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -75,12 +78,127 @@ bool run_line(cli::CommandProcessor& processor, const std::string& line)
     return go_on;
 }
 
+// Fatal signals: note them in the log, then die the default way (core dump, exit status).
+extern "C" void on_fatal_signal(int sig)
+{
+    applog::note_signal(sig);
+    std::signal(sig, SIG_DFL);
+    std::raise(sig);
+}
+
+void install_crash_logging()
+{
+    for (const int sig : {SIGSEGV, SIGABRT, SIGFPE, SIGBUS, SIGILL, SIGTERM})
+    {
+        struct sigaction sa{};
+        sa.sa_handler = on_fatal_signal;
+        sigemptyset(&sa.sa_mask);
+        sa.sa_flags = SA_RESETHAND;
+        sigaction(sig, &sa, nullptr);
+    }
+    std::set_terminate(
+        []
+        {
+            try
+            {
+                if (const auto e = std::current_exception())
+                {
+                    std::rethrow_exception(e);
+                }
+                applog::error("main", "std::terminate without an exception");
+            }
+            catch (const std::exception& e)
+            {
+                applog::error("main",
+                              std::string("std::terminate: uncaught exception: ") + e.what());
+            }
+            catch (...)
+            {
+                applog::error("main", "std::terminate: uncaught unknown exception");
+            }
+            std::abort();
+        });
+}
+
+// What the user sees on the console goes to the log too, as "console: <line>".
+class TeeBuf : public std::streambuf
+{
+public:
+    explicit TeeBuf(std::streambuf* target)
+        : target_(target)
+    {
+    }
+    TeeBuf(const TeeBuf&) = delete;
+    TeeBuf& operator=(const TeeBuf&) = delete;
+    TeeBuf(TeeBuf&&) = delete;
+    TeeBuf& operator=(TeeBuf&&) = delete;
+    ~TeeBuf() override
+    {
+        if (!line_.empty())
+        {
+            applog::info("console", line_);
+        }
+    }
+
+protected:
+    int_type overflow(int_type ch) override
+    {
+        if (traits_type::eq_int_type(ch, traits_type::eof()))
+        {
+            return traits_type::not_eof(ch);
+        }
+        const char c = traits_type::to_char_type(ch);
+        if (traits_type::eq_int_type(target_->sputc(c), traits_type::eof()))
+        {
+            return traits_type::eof();
+        }
+        take(c);
+        return ch;
+    }
+
+    std::streamsize xsputn(const char* s, std::streamsize n) override
+    {
+        const std::streamsize written = target_->sputn(s, n);
+        for (const char c : std::string_view(s, static_cast<std::size_t>(n)))
+        {
+            take(c);
+        }
+        return written;
+    }
+
+    int sync() override
+    {
+        return target_->pubsync();
+    }
+
+private:
+    static constexpr std::size_t kMaxLine = 4096;
+
+    void take(char c)
+    {
+        if (c == '\n' || line_.size() >= kMaxLine)
+        {
+            applog::info("console", line_);
+            line_.clear();
+        }
+        if (c != '\n')
+        {
+            line_ += c;
+        }
+    }
+
+    std::streambuf* target_;
+    std::string line_;
+};
+
 struct Options
 {
     drone::ConnectionSettings drone;
     std::uint16_t state_port = tello::kStatePort;
     std::string mission; // run this file and exit instead of the interactive shell
     drone::GuardSettings guard;
+    std::filesystem::path log_dir; // empty: no session log
+    int log_keep = applog::kDefaultKeep;
 };
 
 // ~/.config/tello/config sets the defaults, the flags parsed after it override them.
@@ -99,6 +217,24 @@ cli::Config apply_config(Options& opt)
     opt.drone.model = c.model.value_or(opt.drone.model);
     opt.guard.warn_battery = c.warn_battery.value_or(opt.guard.warn_battery);
     opt.guard.land_battery = c.land_battery.value_or(opt.guard.land_battery);
+    if (c.log_dir)
+    {
+        const std::string& dir = *c.log_dir;
+        const char* home = std::getenv("HOME");
+        if (dir == "off")
+        {
+            opt.log_dir.clear();
+        }
+        else if (dir.starts_with("~/") && home != nullptr)
+        {
+            opt.log_dir = std::filesystem::path(home) / dir.substr(2);
+        }
+        else
+        {
+            opt.log_dir = dir;
+        }
+    }
+    opt.log_keep = c.log_keep.value_or(opt.log_keep);
     return c;
 }
 
@@ -106,7 +242,7 @@ void usage()
 {
     std::cout
         << "usage: tello [--host IP] [--port N] [--state-port N] [--video-port N] [--model M]\n"
-           "             [--mission FILE]\n"
+           "             [--mission FILE] [--log-dir DIR | --no-log]\n"
            "  --host        drone address (default "
         << tello::kDroneHost
         << ")\n"
@@ -119,6 +255,10 @@ void usage()
            "  --video-port  local port of the camera stream (default 11111)\n"
            "  --model       tello (default) or tello-edu\n"
            "  --mission     run a command file, then exit (stops and lands on error)\n"
+           "  --log-dir     session log directory (default "
+        << cli::default_log_dir().string()
+        << ")\n"
+           "  --no-log      no session log\n"
            "Defaults: ~/.config/tello/config ('key = value'), flags override it.\n"
            "Against the simulator: make run-sim\n";
 }
@@ -171,6 +311,14 @@ bool parse_options(int argc, char** argv, Options& opt)
         else if (arg == "--model")
         {
             opt.drone.model = value();
+        }
+        else if (arg == "--log-dir")
+        {
+            opt.log_dir = value();
+        }
+        else if (arg == "--no-log")
+        {
+            opt.log_dir.clear();
         }
         else if (arg == "--help" || arg == "-h")
         {
@@ -350,56 +498,119 @@ int run(drone::DroneBase& drone, cli::CommandProcessor& processor,
     return EXIT_SUCCESS;
 }
 
+// Session header: enough to tell later what ran, where, and with which settings.
+void log_session_start(int argc, char** argv, const Options& opt, const drone::DroneBase& drone)
+{
+    std::string args;
+    for (int i = 0; i < argc; ++i)
+    {
+        args += (i == 0 ? "" : " ") + std::string(argv[i]);
+    }
+    applog::info("main", "tello " + std::string(tello::version()) + " session start, pid " +
+                             std::to_string(::getpid()));
+    applog::info("main", "argv: " + args);
+    applog::info("main", "drone " + drone.model() + " at " + opt.drone.host + ':' +
+                             std::to_string(opt.drone.port) + ", state port " +
+                             std::to_string(opt.state_port) + ", video port " +
+                             std::to_string(opt.drone.video_port));
+    applog::info("main", "guard: warn battery " + std::to_string(opt.guard.warn_battery) +
+                             "%, land battery " + std::to_string(opt.guard.land_battery) + '%');
+    applog::info("main", "mode: " + (opt.mission.empty()
+                                         ? std::string(::isatty(STDIN_FILENO) ? "interactive"
+                                                                              : "piped input")
+                                         : "mission " + opt.mission));
+}
+
+int run_session(int argc, char** argv, Options& opt)
+{
+    const cli::Config config = apply_config(opt);
+    if (!parse_options(argc, argv, opt))
+    {
+        return EXIT_SUCCESS;
+    }
+    if (!opt.log_dir.empty())
+    {
+        try
+        {
+            applog::open(opt.log_dir, opt.log_keep);
+        }
+        catch (const std::exception& e)
+        {
+            std::cerr << "tello: " << e.what() << " (flying without a log)\n";
+        }
+    }
+    auto drone = drone::make_drone(opt.drone);
+    log_session_start(argc, argv, opt, *drone);
+    std::unique_ptr<tello::StateListener> telemetry;
+    if (opt.state_port != 0)
+    {
+        telemetry = std::make_unique<tello::StateListener>("0.0.0.0", opt.state_port);
+    }
+    install_sigint();
+    TeeBuf tee(std::cout.rdbuf());
+    std::ostream console(&tee);
+    cli::CommandProcessor processor(*drone, console,
+                                    {opt.drone.host, opt.drone.port, opt.state_port,
+                                     home_subdir("Videos", "tello"),
+                                     home_subdir("Pictures", "tello")},
+                                    telemetry.get(), interruptible_sleep,
+                                    []
+                                    {
+                                        return g_interrupted.load();
+                                    });
+    processor.set_viewer_factory(
+        [](video::ViewerSources sources) -> std::unique_ptr<video::Viewer>
+        {
+            return std::make_unique<video::VideoWindow>(std::move(sources));
+        });
+    processor.set_key_layout(config.keys);
+    processor.set_keyboard_speed(config.keyboard_speed.value_or(cli::kDefaultKeyboardSpeed));
+    processor.set_joystick_deadzone(config.joystick_deadzone.value_or(cli::kDefaultDeadzone));
+    processor.load_aliases(cli::config_dir() / "aliases");
+    std::unique_ptr<cli::TelemetryLog> telemetry_log;
+    if (telemetry && !applog::current().empty())
+    {
+        telemetry_log = std::make_unique<cli::TelemetryLog>(*telemetry,
+                                                            [&processor]
+                                                            {
+                                                                return processor.airborne();
+                                                            });
+    }
+
+    console << "tello " << tello::version() << " — " << drone->model() << " at " << opt.drone.host
+            << ':' << opt.drone.port << ". 'help' lists commands.\n"
+            << std::flush;
+    processor.execute_line("connect"); // SDK mode; on failure 'connect' can be retried
+    const int code = opt.mission.empty() ? run(*drone, processor, telemetry.get(), opt.guard)
+                                         : run_mission_file(*drone, processor, telemetry.get(),
+                                                            opt.guard, opt.mission);
+    if (processor.airborne())
+    {
+        applog::warn("main", "leaving while the drone is still in the air");
+    }
+    return code;
+}
+
 } // namespace
 
 int main(int argc, char** argv)
 {
+    applog::set_thread_name("main");
+    install_crash_logging();
     Options opt;
+    opt.log_dir = cli::default_log_dir();
+    int code = EXIT_FAILURE;
     try
     {
-        const cli::Config config = apply_config(opt);
-        if (!parse_options(argc, argv, opt))
-        {
-            return EXIT_SUCCESS;
-        }
-        auto drone = drone::make_drone(opt.drone);
-        std::unique_ptr<tello::StateListener> telemetry;
-        if (opt.state_port != 0)
-        {
-            telemetry = std::make_unique<tello::StateListener>("0.0.0.0", opt.state_port);
-        }
-        install_sigint();
-        cli::CommandProcessor processor(*drone, std::cout,
-                                        {opt.drone.host, opt.drone.port, opt.state_port,
-                                         home_subdir("Videos", "tello"),
-                                         home_subdir("Pictures", "tello")},
-                                        telemetry.get(), interruptible_sleep,
-                                        []
-                                        {
-                                            return g_interrupted.load();
-                                        });
-        processor.set_viewer_factory(
-            [](video::ViewerSources sources) -> std::unique_ptr<video::Viewer>
-            {
-                return std::make_unique<video::VideoWindow>(std::move(sources));
-            });
-        processor.set_key_layout(config.keys);
-        processor.set_keyboard_speed(config.keyboard_speed.value_or(cli::kDefaultKeyboardSpeed));
-        processor.set_joystick_deadzone(config.joystick_deadzone.value_or(cli::kDefaultDeadzone));
-        processor.load_aliases(cli::config_dir() / "aliases");
-
-        std::cout << "tello " << tello::version() << " — " << drone->model() << " at "
-                  << opt.drone.host << ':' << opt.drone.port << ". 'help' lists commands.\n";
-        processor.execute_line("connect"); // SDK mode; on failure 'connect' can be retried
-        if (!opt.mission.empty())
-        {
-            return run_mission_file(*drone, processor, telemetry.get(), opt.guard, opt.mission);
-        }
-        return run(*drone, processor, telemetry.get(), opt.guard);
+        code = run_session(argc, argv, opt);
     }
     catch (const std::exception& e)
     {
+        applog::error("main", std::string("fatal: ") + e.what());
         std::cerr << "tello: " << e.what() << '\n';
-        return EXIT_FAILURE;
+        code = EXIT_FAILURE;
     }
+    applog::info("main", "session end, exit code " + std::to_string(code));
+    applog::close();
+    return code;
 }

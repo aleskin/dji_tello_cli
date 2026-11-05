@@ -132,7 +132,7 @@ public:
     // After a successful takeoff until a successful land/emergency.
     [[nodiscard]] bool airborne() const
     {
-        return airborne_;
+        return airborne_.load();
     }
 
     // Command names (with aliases) this model supports and that start with prefix.
@@ -232,6 +232,7 @@ private:
     void note_recorded(std::string_view command, const std::string& name,
                        const std::optional<drone::Position>& before, bool was_airborne);
     void print_dry_run(const FigurePlan& plan);
+    void log_position(const CommandInfo& info) const;
     [[nodiscard]] video::Osd osd() const;
 
     drone::DroneBase& drone_;
@@ -243,7 +244,7 @@ private:
     std::vector<Entry> entries_;
     std::vector<CommandInfo> commands_;
     bool exit_requested_ = false;
-    bool airborne_ = false;
+    std::atomic<bool> airborne_{false}; // read by the telemetry log thread
     bool in_mission_ = false;
     std::unique_ptr<video::VideoStream> video_; // between "video start" and "video stop"
     video::ViewerFactory viewer_factory_;
