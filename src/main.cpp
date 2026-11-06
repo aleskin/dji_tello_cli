@@ -132,6 +132,9 @@ extern "C" void on_fatal_signal(int sig)
 
 void install_crash_logging()
 {
+    // A closed output pipe must not kill the program silently: writes fail instead, and the
+    // session notices that the console is gone (see console_lost()).
+    std::signal(SIGPIPE, SIG_IGN);
     for (const int sig : {SIGSEGV, SIGABRT, SIGFPE, SIGBUS, SIGILL, SIGTERM, SIGHUP, SIGQUIT})
     {
         struct sigaction sa{};
@@ -165,7 +168,31 @@ void install_crash_logging()
         });
 }
 
+// Set when writing to stdout fails (the reader of a pipe went away). Lock-free atomic.
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+std::atomic<bool> g_output_lost{false};
+
+// True once stdout is gone: flushes pending output first so a closed pipe shows up now.
+bool console_lost()
+{
+    std::cout.flush();
+    if (!std::cout)
+    {
+        g_output_lost.store(true);
+    }
+    return g_output_lost.load();
+}
+
+// Nobody sees the console any more: land if in the air, then leave with a failure.
+int leave_without_console(cli::CommandProcessor& processor)
+{
+    applog::error("main", "console output lost (stdout closed): landing if in the air, exiting");
+    processor.land_before_exit();
+    return EXIT_FAILURE;
+}
+
 // What the user sees on the console goes to the log too, as "console: <line>".
+// A failed console write is remembered and the text still reaches the log.
 class TeeBuf : public std::streambuf
 {
 public:
@@ -195,7 +222,7 @@ protected:
         const char c = traits_type::to_char_type(ch);
         if (traits_type::eq_int_type(target_->sputc(c), traits_type::eof()))
         {
-            return traits_type::eof();
+            g_output_lost.store(true);
         }
         take(c);
         return ch;
@@ -203,17 +230,24 @@ protected:
 
     std::streamsize xsputn(const char* s, std::streamsize n) override
     {
-        const std::streamsize written = target_->sputn(s, n);
+        if (target_->sputn(s, n) != n)
+        {
+            g_output_lost.store(true);
+        }
         for (const char c : std::string_view(s, static_cast<std::size_t>(n)))
         {
             take(c);
         }
-        return written;
+        return n;
     }
 
     int sync() override
     {
-        return target_->pubsync();
+        if (target_->pubsync() != 0)
+        {
+            g_output_lost.store(true);
+        }
+        return 0;
     }
 
 private:
@@ -470,6 +504,10 @@ int run_mission_file(drone::DroneBase& drone, cli::CommandProcessor& processor,
     {
         processor.on_interrupt();
     }
+    if (console_lost())
+    {
+        return leave_without_console(processor);
+    }
     const bool landed = processor.land_before_exit();
     return ok && landed ? EXIT_SUCCESS : EXIT_FAILURE;
 }
@@ -496,7 +534,12 @@ int run(drone::DroneBase& drone, cli::CommandProcessor& processor,
         std::string line;
         while (std::getline(std::cin, line))
         {
-            if (!run_line(processor, line))
+            const bool go_on = run_line(processor, line);
+            if (console_lost())
+            {
+                return leave_without_console(processor);
+            }
+            if (!go_on)
             {
                 break;
             }
@@ -526,6 +569,7 @@ int run(drone::DroneBase& drone, cli::CommandProcessor& processor,
             return complete(processor, input, context_len);
         });
 
+    int code = EXIT_SUCCESS;
     for (;;)
     {
         errno = 0;
@@ -549,7 +593,13 @@ int run(drone::DroneBase& drone, cli::CommandProcessor& processor,
             continue;
         }
         rx.history_add(line);
-        if (!run_line(processor, line) && processor.land_before_exit())
+        const bool go_on = run_line(processor, line);
+        if (console_lost())
+        {
+            code = leave_without_console(processor);
+            break;
+        }
+        if (!go_on && processor.land_before_exit())
         {
             break;
         }
@@ -558,7 +608,7 @@ int run(drone::DroneBase& drone, cli::CommandProcessor& processor,
     {
         rx.history_save(history);
     }
-    return EXIT_SUCCESS;
+    return code;
 }
 
 // Session header: enough to tell later what ran, where, and with which settings.

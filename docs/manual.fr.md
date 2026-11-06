@@ -62,7 +62,7 @@ Options de lancement : `--host`, `--port`, `--state-port` (0 — sans télémét
 - **Sortie sûre :** `exit`, Ctrl+D ou la fin d'une mission avec le drone en l'air atterrissent d'abord
   et ne quittent qu'après l'atterrissage. En cas d'échec, le programme reste ouvert (`land` ou
   `emergency` ; un second `exit` quitte quand même).
-- **Atterrissage d'urgence :** si le programme meurt en vol (plantage, `kill`, terminal fermé), il
+- **Atterrissage d'urgence :** si le programme meurt en vol (plantage, `kill`, terminal ou pipe de sortie fermés), il
   envoie `land` avant et le note dans le journal. Si une commande bloque 45 s, le drone atterrit aussi.
 - Non couvert : `kill -9`, portable à plat, perte du Wi-Fi — le Tello atterrit alors seul après 15 s
   sans commande.

@@ -103,6 +103,8 @@ metre flown; `return` flies straight legs back by this estimate, it is not a GPS
   leaves anyway); piped input and missions exit with an error code.
 - **Emergency landing**: if the program dies in the air (crash signal, `kill`, closed terminal,
   fatal error) it sends `rc 0 0 0 0` and `land` before it goes, and notes it in the session log.
+- **Lost output**: if the program's output pipe closes in flight (the reader of `tello | ...`
+  went away), it lands the drone and exits with an error code.
 - **Hang watchdog**: a command stuck for 45 s without talking to the drone (outside planned
   pauses) stops the keepalive and lands the drone.
 - Not covered: `kill -9`, a dead laptop, lost Wi-Fi — then the Tello's own auto-landing after 15 s

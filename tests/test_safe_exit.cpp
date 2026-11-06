@@ -344,14 +344,24 @@ protected:
         {
             ::close(input);
         }
+        if (output >= 0)
+        {
+            ::close(output);
+        }
         std::filesystem::remove_all(home);
     }
 
     // Starts 'tello' with piped stdin against the simulator, output and log under home.
-    void start()
+    // With pipe_output its stdout goes to a pipe whose read end is 'output'.
+    void start(bool pipe_output = false)
     {
         std::array<int, 2> fds{};
         ASSERT_EQ(::pipe(fds.data()), 0);
+        std::array<int, 2> out_fds{-1, -1};
+        if (pipe_output)
+        {
+            ASSERT_EQ(::pipe(out_fds.data()), 0);
+        }
         const std::string port = std::to_string(sim->command_port());
         const std::string log_dir = (home / "logs").string();
         const std::string out_file = (home / "out.txt").string();
@@ -387,13 +397,27 @@ protected:
             ::close(fds[0]);
             ::close(fds[1]);
             const int out = ::open(out_file.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
-            ::dup2(out, STDOUT_FILENO);
             ::dup2(out, STDERR_FILENO);
+            if (out_fds[1] >= 0)
+            {
+                ::dup2(out_fds[1], STDOUT_FILENO);
+                ::close(out_fds[0]);
+                ::close(out_fds[1]);
+            }
+            else
+            {
+                ::dup2(out, STDOUT_FILENO);
+            }
             ::execve(TELLO_CLI_PATH, argv.data(), envp.data());
             ::_exit(127);
         }
         ::close(fds[0]);
         input = fds[1];
+        if (out_fds[1] >= 0)
+        {
+            ::close(out_fds[1]);
+            output = out_fds[0];
+        }
     }
 
     void say(const std::string& text) const
@@ -434,6 +458,7 @@ protected:
     std::filesystem::path home;
     pid_t pid = -1;
     int input = -1;
+    int output = -1;
 };
 
 TEST_F(TelloProcess, KilledInTheAirLands)
@@ -461,6 +486,25 @@ TEST_F(TelloProcess, KilledInTheAirLands)
         ::close(input);
         input = -1;
     }
+}
+
+TEST_F(TelloProcess, ClosedOutputPipeInTheAirLands)
+{
+    start(true);
+    say("takeoff\n");
+    ASSERT_TRUE(wait_for(
+        [this]
+        {
+            return sim->model().flying;
+        }));
+    ::close(output);
+    output = -1;
+    say("battery?\n");
+    const int status = wait_exit();
+    ASSERT_TRUE(WIFEXITED(status)) << "killed by signal " << WTERMSIG(status);
+    EXPECT_EQ(WEXITSTATUS(status), 1);
+    EXPECT_FALSE(sim->model().flying);
+    EXPECT_NE(log_text().find("console output lost"), std::string::npos);
 }
 
 TEST_F(TelloProcess, ExitInTheAirLandsFirst)

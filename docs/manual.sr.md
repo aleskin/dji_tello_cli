@@ -59,7 +59,7 @@ Opcije pokretanja: `--host`, `--port`, `--state-port` (0 — bez telemetrije), `
 - **Baterija:** upozorenje na 15 %, automatsko sletanje na 10 % (podešava se), ponavlja se na svake 3 s dok ga dron ne potvrdi.
 - **Bezbedan izlaz:** `exit`, Ctrl+D ili kraj misije u vazduhu prvo spuštaju dron i izlaze tek posle
   sletanja. Ako sletanje ne uspe, program ostaje otvoren (`land` ili `emergency`; drugi `exit` ipak izlazi).
-- **Hitno sletanje:** ako program padne u vazduhu (greška, `kill`, zatvoren terminal), stigne da pošalje
+- **Hitno sletanje:** ako program padne u vazduhu (greška, `kill`, zatvoren terminal ili izlazni pipe), stigne da pošalje
   `land` i upiše to u dnevnik. Ako komanda visi 45 s, dron takođe sleće.
 - Nije pokriveno: `kill -9`, prazan laptop, gubitak Wi-Fi veze — tada Tello sam sleće posle 15 s
   bez komandi.
