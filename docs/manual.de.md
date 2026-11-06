@@ -58,7 +58,7 @@ Startoptionen: `--host`, `--port`, `--state-port` (0 — ohne Telemetrie), `--vi
   Am Boden löscht Strg+C nur die Zeile; beenden mit `exit` oder Strg+D.
 - **Keepalive:** Die Drohne landet nach 15 s ohne Befehl von selbst, deshalb sendet das Programm
   ihr ein Signal, solange Sie nichts eingeben.
-- **Akku:** Warnung bei 15 %, automatische Landung bei 10 % (einstellbar).
+- **Akku:** Warnung bei 15 %, automatische Landung bei 10 % (einstellbar), alle 3 s wiederholt, bis die Drohne sie bestätigt.
 - **Sicheres Beenden:** `exit`, Strg+D oder das Ende einer Mission in der Luft landen zuerst und
   beenden erst nach der Landung. Klappt die Landung nicht, bleibt das Programm offen (`land` oder
   `emergency`; ein zweites `exit` beendet trotzdem).

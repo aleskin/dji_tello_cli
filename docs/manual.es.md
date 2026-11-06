@@ -57,7 +57,7 @@ Opciones de inicio: `--host`, `--port`, `--state-port` (0 — sin telemetría), 
   En tierra, Ctrl+C solo borra la línea; para salir: `exit` o Ctrl+D.
 - **Keepalive:** el dron aterriza solo tras 15 s sin comandos, por eso el programa le envía una
   señal mientras usted no escribe nada.
-- **Batería:** aviso al 15 %, aterrizaje automático al 10 % (configurable).
+- **Batería:** aviso al 15 %, aterrizaje automático al 10 % (configurable), repetido cada 3 s hasta que el dron lo confirme.
 - **Salida segura:** `exit`, Ctrl+D o el final de una misión con el dron en el aire aterrizan primero
   y salen solo después del aterrizaje. Si falla, el programa sigue abierto (`land` o `emergency`;
   un segundo `exit` sale de todos modos).

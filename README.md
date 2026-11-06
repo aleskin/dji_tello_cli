@@ -95,7 +95,7 @@ metre flown; `return` flies straight legs back by this estimate, it is not a GPS
 
 - **Keepalive**: the drone lands by itself after 15 s without commands; the CLI sends a keepalive
   when you are quiet.
-- **Low battery**: a warning at 15 %, an automatic `land` at 10 % (from telemetry; see the config).
+- **Low battery**: a warning at 15 %, an automatic `land` at 10 % (from telemetry; see the config), repeated every 3 s until the drone confirms.
 - **Ctrl+C** in flight lands the drone; it never quits the program with the drone in the air.
   On the ground it only clears the line. `exit` or Ctrl+D quits.
 - **Safe exit**: `exit`, Ctrl+D or the end of piped input / a mission in flight lands first and

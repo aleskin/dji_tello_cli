@@ -21,6 +21,8 @@ struct GuardSettings
     // Hang watchdog: a command stalled this long means the program is stuck. Above the longest
     // legal wait for a reply (action timeout 20 s, queries 3 x 3 s).
     std::chrono::milliseconds stuck_after{45'000};
+    // A low-battery landing that failed is tried again this often while the battery stays low.
+    std::chrono::milliseconds land_retry{3'000};
 };
 
 // Background safety for a connected drone, working through DroneBase only:
@@ -59,7 +61,9 @@ private:
     bool keepalive_supported_ = true;
     bool keepalive_failing_ = false;
     bool warned_ = false;
-    bool landed_ = false;
+    bool landed_ = false;   // low-battery landing confirmed
+    int land_failures_ = 0; // failed low-battery landings in a row
+    std::chrono::steady_clock::time_point next_land_{};
     std::jthread thread_; // last: started after everything it uses exists
 };
 

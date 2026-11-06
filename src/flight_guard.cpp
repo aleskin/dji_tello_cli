@@ -126,6 +126,8 @@ void FlightGuard::check_battery()
     {
         warned_ = false; // a fresh battery re-arms both alarms
         landed_ = false;
+        land_failures_ = 0;
+        next_land_ = {};
         return;
     }
     if (!warned_)
@@ -133,18 +135,43 @@ void FlightGuard::check_battery()
         warned_ = true;
         say("battery low: " + std::to_string(*level) + " %, land soon");
     }
-    if (*level <= settings_.land_battery && !landed_)
+    const auto now = std::chrono::steady_clock::now();
+    if (*level > settings_.land_battery || landed_ || now < next_land_)
     {
+        return;
+    }
+    // Marked landed only once the drone confirms: a lost or refused 'land' is tried again.
+    const std::string text = "battery " + std::to_string(*level) + " %: landing";
+    if (land_failures_ == 0)
+    {
+        say(text);
+    }
+    else
+    {
+        applog::warn("guard", text + " (attempt " + std::to_string(land_failures_ + 1) + ")");
+    }
+    try
+    {
+        drone_.land();
         landed_ = true;
-        say("battery " + std::to_string(*level) + " %: landing");
-        try
+        if (land_failures_ > 0)
         {
-            drone_.land();
+            say("landing on low battery confirmed");
         }
-        catch (const DroneError& e)
+    }
+    catch (const DroneError& e)
+    {
+        if (land_failures_ == 0)
         {
-            say(std::string("landing failed: ") + e.what());
+            say(std::string("landing failed: ") + e.what() + "; trying again every " +
+                applog::ms(settings_.land_retry));
         }
+        else
+        {
+            applog::warn("guard", std::string("landing failed again: ") + e.what());
+        }
+        ++land_failures_;
+        next_land_ = now + settings_.land_retry;
     }
 }
 

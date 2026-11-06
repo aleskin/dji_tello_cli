@@ -56,7 +56,7 @@ Opcije pokretanja: `--host`, `--port`, `--state-port` (0 — bez telemetrije), `
 - **Ctrl+C u vazduhu — sletanje.** Program se nikad ne zatvara dok je dron u vazduhu.
   Na zemlji Ctrl+C samo briše red; izlaz je `exit` ili Ctrl+D.
 - **Keepalive:** dron sam sleće posle 15 s bez komandi, zato mu program šalje signal dok ćutite.
-- **Baterija:** upozorenje na 15 %, automatsko sletanje na 10 % (podešava se).
+- **Baterija:** upozorenje na 15 %, automatsko sletanje na 10 % (podešava se), ponavlja se na svake 3 s dok ga dron ne potvrdi.
 - **Bezbedan izlaz:** `exit`, Ctrl+D ili kraj misije u vazduhu prvo spuštaju dron i izlaze tek posle
   sletanja. Ako sletanje ne uspe, program ostaje otvoren (`land` ili `emergency`; drugi `exit` ipak izlazi).
 - **Hitno sletanje:** ako program padne u vazduhu (greška, `kill`, zatvoren terminal), stigne da pošalje

@@ -58,7 +58,7 @@ Options de lancement : `--host`, `--port`, `--state-port` (0 — sans télémét
   Au sol, Ctrl+C efface seulement la ligne ; pour quitter : `exit` ou Ctrl+D.
 - **Keepalive :** le drone atterrit seul après 15 s sans commande, c'est pourquoi le programme lui
   envoie un signal tant que vous ne tapez rien.
-- **Batterie :** avertissement à 15 %, atterrissage automatique à 10 % (réglable).
+- **Batterie :** avertissement à 15 %, atterrissage automatique à 10 % (réglable), répété toutes les 3 s jusqu'à confirmation du drone.
 - **Sortie sûre :** `exit`, Ctrl+D ou la fin d'une mission avec le drone en l'air atterrissent d'abord
   et ne quittent qu'après l'atterrissage. En cas d'échec, le programme reste ouvert (`land` ou
   `emergency` ; un second `exit` quitte quand même).

@@ -145,6 +145,32 @@ TEST(FlightGuardTest, LowBatteryWarnsThenLandsOnce)
     EXPECT_EQ(count(mock->requests, "land"), 1u);
 }
 
+TEST(FlightGuardTest, FailedLowBatteryLandingIsTriedAgain)
+{
+    auto mock = std::make_shared<MockTransport>();
+    tello::TelloClassic drone(mock);
+    drone.takeoff();
+    mock->reply("error Motor stop");
+    mock->reply(std::nullopt);
+    Messages messages;
+    {
+        auto settings = fast();
+        settings.keepalive_after = milliseconds(60'000);
+        settings.land_retry = milliseconds(30);
+        drone::FlightGuard guard(
+            drone, settings,
+            []
+            {
+                return std::optional<int>(8);
+            },
+            messages.sink());
+        std::this_thread::sleep_for(milliseconds(300));
+    }
+    EXPECT_EQ(count(mock->requests, "land"), 3u); // error, no reply, then ok: no more after that
+    EXPECT_EQ(messages.count_containing("landing failed"), 1u);
+    EXPECT_EQ(messages.count_containing("landing on low battery confirmed"), 1u);
+}
+
 TEST(FlightGuardTest, UnknownBatteryDoesNothing)
 {
     auto mock = std::make_shared<MockTransport>();
