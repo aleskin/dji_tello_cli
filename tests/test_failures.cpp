@@ -40,7 +40,7 @@ TEST(QueryRetryTest, GivesUpAfterRetries)
     {
         mock->reply(std::nullopt);
     }
-    EXPECT_THROW((void)drone.battery(), TelloError);
+    EXPECT_THROW((void)drone.battery(), drone::NoReply);
     EXPECT_EQ(mock->requests.size(), 3u);
 }
 
@@ -58,7 +58,7 @@ TEST(QueryRetryTest, ActionsAreNeverResent)
     auto mock = std::make_shared<MockTransport>();
     tello::TelloClassic drone(mock);
     mock->reply(std::nullopt);
-    EXPECT_THROW(drone.move(drone::Direction::Forward, 100), TelloError);
+    EXPECT_THROW(drone.move(drone::Direction::Forward, 100), drone::NoReply);
     EXPECT_EQ(mock->requests, (std::vector<std::string>{"forward 100"}));
 }
 
@@ -97,10 +97,10 @@ TEST_F(FaultySim, AllRepliesLost)
     tello::sim::SimConfig config;
     config.drop_percent = 100;
     start(config);
-    EXPECT_THROW(drone->connect(), TelloError); // the drone did enter SDK mode, though
-    EXPECT_THROW((void)drone->battery(), TelloError);
+    EXPECT_THROW(drone->connect(), drone::NoReply); // the drone did enter SDK mode, though
+    EXPECT_THROW((void)drone->battery(), drone::NoReply);
     EXPECT_EQ(sim->dropped_replies(), 4); // connect once, battery? three times
-    EXPECT_THROW(drone->takeoff(), TelloError);
+    EXPECT_THROW(drone->takeoff(), drone::NoReply);
     EXPECT_TRUE(sim->model().flying); // why actions are never resent
 }
 
@@ -114,7 +114,7 @@ TEST_F(FaultySim, RetriesRideOverRandomLoss)
     {
         (void)transport->request("command", milliseconds(300));
     }
-    catch (const TelloError&)
+    catch (const drone::DroneError&)
     {
         // the reply may be lost; the drone has entered SDK mode anyway
     }
@@ -130,7 +130,7 @@ TEST_F(FaultySim, SlowReplyTimesOut)
     tello::sim::SimConfig config;
     config.reply_delay = milliseconds(250);
     start(config, {milliseconds(100), milliseconds(100), 0});
-    EXPECT_THROW(drone->connect(), TelloError);
+    EXPECT_THROW(drone->connect(), drone::NoReply);
 }
 
 TEST_F(FaultySim, SlowReplyWithinTimeoutIsFine)

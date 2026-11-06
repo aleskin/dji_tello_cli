@@ -159,7 +159,7 @@ TEST_F(LogTest, TransportLogsTimeout)
     config.drop_percent = 100;
     tello::sim::Simulator sim(config);
     tello::UdpTransport transport("127.0.0.1", sim.command_port());
-    EXPECT_THROW((void)transport.request("command", milliseconds(100)), tello::TelloError);
+    EXPECT_THROW((void)transport.request("command", milliseconds(100)), drone::NoReply);
     EXPECT_TRUE(std::regex_search(text(), std::regex(R"(WARN .* ! no reply to 'command' after)")));
 }
 

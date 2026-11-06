@@ -83,7 +83,7 @@ std::string UdpTransport::request(std::string_view command, std::chrono::millise
         {
             applog::warn("drone", "! no reply to '" + std::string(command) + "' after " +
                                       applog::ms(std::chrono::steady_clock::now() - sent));
-            throw TelloError("timeout waiting for reply to '" + std::string(command) + "'");
+            throw drone::NoReply("timeout waiting for reply to '" + std::string(command) + "'");
         }
         auto datagram = socket_.receive(left);
         if (!datagram)

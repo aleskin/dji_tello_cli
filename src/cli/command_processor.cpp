@@ -273,8 +273,28 @@ void CommandProcessor::register_commands()
          Capability::Takeoff},
         [this](const Args&)
         {
-            drone_.takeoff();
+            // In the air from the moment the command goes out: a lost 'ok' must not leave the
+            // landing paths (Ctrl+C, exit, crash, watchdog) believing the drone is on the ground.
             airborne_ = true;
+            try
+            {
+                drone_.takeoff();
+            }
+            catch (const drone::NoReply&)
+            {
+                out_ << "no reply to takeoff: the drone may be flying, treated as in the air "
+                        "('land' to be sure)\n";
+                if (position_)
+                {
+                    position_->on_takeoff();
+                }
+                throw;
+            }
+            catch (...)
+            {
+                airborne_ = false;
+                throw;
+            }
             if (position_)
             {
                 position_->on_takeoff();

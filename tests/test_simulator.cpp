@@ -227,7 +227,7 @@ TEST_F(SimulatorUdpTest, ErrorReplyBecomesException)
 
 TEST_F(SimulatorUdpTest, NoReplyBeforeSdkModeTimesOut)
 {
-    EXPECT_THROW(drone.takeoff(), TelloError);
+    EXPECT_THROW(drone.takeoff(), drone::NoReply);
     EXPECT_FALSE(sim.model().flying);
 }
 

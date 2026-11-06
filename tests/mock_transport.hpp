@@ -35,7 +35,7 @@ public:
         replies.pop_front();
         if (!reply)
         {
-            throw TelloError("timeout waiting for reply to '" + std::string(command) + "'");
+            throw drone::NoReply("timeout waiting for reply to '" + std::string(command) + "'");
         }
         return *reply;
     }

@@ -53,7 +53,7 @@ TEST_F(DroneTest, ErrorReplyThrowsWithDroneText)
 TEST_F(DroneTest, TimeoutThrows)
 {
     transport.reply(std::nullopt);
-    EXPECT_THROW(drone.land(), TelloError);
+    EXPECT_THROW(drone.land(), drone::NoReply);
 }
 
 TEST_F(DroneTest, MoveFormatsCommand)

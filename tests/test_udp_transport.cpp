@@ -37,7 +37,7 @@ TEST(UdpTransport, SilentPeerTimesOut)
     UdpTransport transport("127.0.0.1", peer.local_port());
 
     const auto start = std::chrono::steady_clock::now();
-    EXPECT_THROW((void)transport.request("command", milliseconds(100)), TelloError);
+    EXPECT_THROW((void)transport.request("command", milliseconds(100)), drone::NoReply);
     EXPECT_GE(std::chrono::steady_clock::now() - start, milliseconds(100));
 }
 
@@ -46,7 +46,7 @@ TEST(UdpTransport, StaleReplyIsNotTakenForTheNextOne)
     UdpSocket peer("127.0.0.1", 0);
     UdpTransport transport("127.0.0.1", peer.local_port());
 
-    EXPECT_THROW((void)transport.request("takeoff", milliseconds(50)), TelloError);
+    EXPECT_THROW((void)transport.request("takeoff", milliseconds(50)), drone::NoReply);
     const auto first = peer.receive(milliseconds(1000));
     ASSERT_TRUE(first);
     peer.send_to("ok", first->from_host, first->from_port); // late answer to "takeoff"

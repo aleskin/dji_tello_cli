@@ -20,4 +20,11 @@ public:
     using DroneError::DroneError;
 };
 
+// The command went out but no reply came: the drone may or may not have done it.
+class NoReply : public DroneError
+{
+public:
+    using DroneError::DroneError;
+};
+
 } // namespace drone

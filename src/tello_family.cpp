@@ -254,7 +254,7 @@ std::string TelloFamily::query(std::string_view command)
             reply = transport_->request(command, timeouts_.query);
             break;
         }
-        catch (const TelloError&)
+        catch (const drone::NoReply&)
         {
             if (attempt >= timeouts_.query_retries)
             {

@@ -117,6 +117,40 @@ TEST_F(SafeExitCli, ExitRightAfterFailedLandingLeavesAnyway)
     EXPECT_TRUE(cli.airborne());
 }
 
+TEST_F(SafeExitCli, LostTakeoffReplyCountsAsInTheAir)
+{
+    mock->reply(std::nullopt);
+    cli.execute_line("takeoff");
+    EXPECT_TRUE(cli.airborne());
+    EXPECT_NE(out.str().find("may be flying"), std::string::npos);
+    EXPECT_TRUE(cli.land_before_exit());
+    EXPECT_EQ(count(mock->requests, "land"), 1u);
+    EXPECT_FALSE(cli.airborne());
+}
+
+TEST_F(SafeExitCli, RefusedTakeoffStaysOnTheGround)
+{
+    mock->reply("error No valid imu");
+    cli.execute_line("takeoff");
+    EXPECT_FALSE(cli.airborne());
+    EXPECT_TRUE(cli.land_before_exit());
+    EXPECT_EQ(count(mock->requests, "land"), 0u);
+}
+
+TEST_F(SafeExitCli, InTheAirWhileTakeoffIsInFlight)
+{
+    bool during = false;
+    mock->on_request = [&](std::string_view command)
+    {
+        if (command == "takeoff")
+        {
+            during = cli.airborne();
+        }
+    };
+    cli.execute_line("takeoff");
+    EXPECT_TRUE(during);
+}
+
 TEST_F(SafeExitCli, StalledOnlyWhileACommandRunsInTheAir)
 {
     EXPECT_EQ(cli.stalled_for(), std::chrono::steady_clock::duration::zero());
