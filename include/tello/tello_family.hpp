@@ -6,6 +6,7 @@
 #include <chrono>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <string_view>
@@ -40,6 +41,9 @@ struct DroneTimeouts
     // Extra attempts for read queries only. Actions are never resent: a lost "ok" for
     // "forward 100" does not mean the drone did not fly, and a resend would fly twice.
     int query_retries = 2;
+    // Keepalive holds the link while it waits: short, so 'land' or 'emergency' typed meanwhile
+    // waits at most this long.
+    std::chrono::milliseconds keepalive{1'000};
 };
 
 // Layer 2: the Tello text protocol over UDP, i.e. the SDK 1.3 command set every Tello has.
@@ -94,7 +98,8 @@ public:
 protected:
     TelloFamily(std::shared_ptr<ITransport> transport, DroneTimeouts timeouts);
 
-    void expect_ok(const std::string& command, bool counts_as_command = true);
+    void expect_ok(const std::string& command, bool counts_as_command = true,
+                   std::optional<std::chrono::milliseconds> timeout = std::nullopt);
     std::string query(std::string_view command);
     int query_int(std::string_view command);
 

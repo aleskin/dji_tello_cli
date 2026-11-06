@@ -103,6 +103,9 @@ void TelloFamily::land()
 }
 void TelloFamily::emergency()
 {
+    // Out at once, ahead of a request that may still be waiting for its reply; then the
+    // usual request for the confirmation.
+    transport_->send_now("emergency");
     expect_ok("emergency");
 }
 
@@ -210,7 +213,7 @@ void TelloFamily::land_now() noexcept
 
 void TelloFamily::keepalive()
 {
-    expect_ok("command", false);
+    expect_ok("command", false, timeouts_.keepalive);
 }
 
 void TelloFamily::start_video()
@@ -233,10 +236,11 @@ void TelloFamily::set_video_port(std::uint16_t port)
     video_port_ = port;
 }
 
-void TelloFamily::expect_ok(const std::string& command, bool counts_as_command)
+void TelloFamily::expect_ok(const std::string& command, bool counts_as_command,
+                            std::optional<std::chrono::milliseconds> timeout)
 {
     mark_activity(counts_as_command);
-    const std::string reply = transport_->request(command, timeouts_.action);
+    const std::string reply = transport_->request(command, timeout.value_or(timeouts_.action));
     if (reply != "ok")
     {
         throw TelloError(command + ": " + (reply.empty() ? std::string("empty reply") : reply));

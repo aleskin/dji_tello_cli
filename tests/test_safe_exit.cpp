@@ -6,6 +6,8 @@
 #include "mock_transport.hpp"
 #include "simulator.hpp"
 #include "tello/tello_family.hpp"
+#include "tello/udp_socket.hpp"
+#include "tello/udp_transport.hpp"
 
 #include <gtest/gtest.h>
 
@@ -75,6 +77,54 @@ protected:
                                   stalled_in_pause = cli.stalled_for();
                               }};
 };
+
+TEST(UrgentCommandsTest, KeepaliveWaitsOnlyBriefly)
+{
+    auto mock = std::make_shared<MockTransport>();
+    tello::TelloClassic drone(mock);
+    drone.keepalive();
+    EXPECT_EQ(mock->last_timeout, milliseconds(1'000));
+    drone.land();
+    EXPECT_EQ(mock->last_timeout, milliseconds(20'000));
+}
+
+TEST(UrgentCommandsTest, EmergencyGoesOutAtOnceThenAsksForTheReply)
+{
+    auto mock = std::make_shared<MockTransport>();
+    tello::TelloClassic drone(mock);
+    drone.emergency();
+    EXPECT_EQ(mock->sent_now, (std::vector<std::string>{"emergency"}));
+    EXPECT_EQ(mock->requests, (std::vector<std::string>{"emergency"}));
+}
+
+TEST(UrgentCommandsTest, EmergencyIsNotHeldBehindAPendingRequest)
+{
+    tello::UdpSocket peer("127.0.0.1", 0); // a drone that never answers
+    auto transport = std::make_shared<tello::UdpTransport>("127.0.0.1", peer.local_port());
+    tello::DroneTimeouts timeouts;
+    timeouts.action = milliseconds(200);
+    tello::TelloClassic drone(transport, timeouts);
+    std::thread keepalive(
+        [&drone]
+        {
+            EXPECT_THROW(drone.keepalive(), drone::NoReply);
+        });
+    const auto first = peer.receive(milliseconds(2'000));
+    ASSERT_TRUE(first);
+    EXPECT_EQ(first->data, "command");
+    const auto start = std::chrono::steady_clock::now();
+    std::thread panic(
+        [&drone]
+        {
+            EXPECT_THROW(drone.emergency(), drone::NoReply);
+        });
+    const auto second = peer.receive(milliseconds(2'000));
+    ASSERT_TRUE(second);
+    EXPECT_EQ(second->data, "emergency");
+    EXPECT_LT(std::chrono::steady_clock::now() - start, milliseconds(500)); // keepalive waits 1 s
+    keepalive.join();
+    panic.join();
+}
 
 TEST_F(SafeExitCli, OnTheGroundNothingToLand)
 {
