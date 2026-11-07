@@ -106,6 +106,8 @@ constexpr int kMaxOrbitSpeed = 100;
 constexpr int kDefaultDeadzone = 10;
 constexpr int kRouteSpeed = 30;                          // cm/s of a recorded manual flight
 constexpr std::chrono::milliseconds kKeyboardPeriod{50}; // rc at 20 Hz
+// Window input older than this is not trusted: manual flight hovers until the window responds.
+constexpr std::chrono::milliseconds kStaleInput{500};
 
 // Interactive command layer. Knows only DroneBase: which model sits behind it decides what works.
 class CommandProcessor
@@ -231,6 +233,7 @@ private:
     void save_aliases();
     bool run_alias(const std::string& body, std::string_view name, const Args& args);
     void keyboard_mode();
+    bool window_input_stale(bool& said);
     void joystick_mode();
     void open_manual_window(std::string_view mode);
     void feed_motion(std::optional<std::chrono::steady_clock::time_point>& last);

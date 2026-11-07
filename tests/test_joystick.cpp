@@ -156,6 +156,28 @@ TEST_F(JoystickCli, EmergencyNeedsBothButtons)
     EXPECT_NE(out.str().find("command mode"), std::string::npos);
 }
 
+TEST_F(JoystickCli, HungWindowHoversWithTheStickHeld)
+{
+    cli.execute_line("takeoff");
+    script = [this](FakeViewer& v)
+    {
+        v.pad = pad(0, 0, 0, 1);
+        if (v.polls == 3)
+        {
+            v.age = cli::kStaleInput + std::chrono::milliseconds(1);
+        }
+        if (v.polls == 4)
+        {
+            interrupted = true;
+        }
+    };
+    cli.execute_line("joystick");
+    EXPECT_EQ(mock->sent,
+              (std::vector<std::string>{"rc 0 100 0 0", "rc 0 0 0 0", "rc 0 0 0 0", "rc 0 0 0 0"}));
+    EXPECT_NE(out.str().find("video window not responding: hovering"), std::string::npos)
+        << out.str();
+}
+
 TEST_F(JoystickCli, WaitsForAPadAndHoversWhenItIsGone)
 {
     cli.execute_line("takeoff");

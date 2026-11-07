@@ -154,27 +154,39 @@ VideoStream::~VideoStream()
     {
         thread_.join();
     }
-    const std::scoped_lock lock(mutex_);
+    const std::scoped_lock out_lock(output_mutex_);
     close_output_locked();
+    const std::scoped_lock lock(mutex_);
     applog::info("video", "closed " + source_ + " after " + std::to_string(status_.packets) +
                               " packets, " + std::to_string(status_.frames) + " frames");
 }
 
 void VideoStream::start_recording(const std::filesystem::path& path)
 {
-    const std::scoped_lock lock(mutex_);
+    const std::scoped_lock out_lock(output_mutex_);
     close_output_locked();
     pending_path_ = path;
+    const std::scoped_lock lock(mutex_);
     status_.waiting_for_keyframe = true;
     status_.error.clear();
 }
 
 std::filesystem::path VideoStream::stop_recording()
 {
-    const std::scoped_lock lock(mutex_);
+    const std::scoped_lock out_lock(output_mutex_);
     pending_path_.clear();
-    status_.waiting_for_keyframe = false;
+    {
+        const std::scoped_lock lock(mutex_);
+        status_.waiting_for_keyframe = false;
+    }
     return close_output_locked();
+}
+
+void VideoStream::set_error(const std::string& error)
+{
+    applog::error("video", error);
+    const std::scoped_lock lock(mutex_);
+    status_.error = error;
 }
 
 StreamStatus VideoStream::status() const
@@ -193,9 +205,12 @@ std::filesystem::path VideoStream::close_output_locked()
     }
     const bool wrote = output_->header_written;
     std::filesystem::path path = output_->path;
-    output_.reset();
+    output_.reset(); // writes the MP4 index: disk I/O, outside mutex_
     applog::info("video", "recording closed: " + path.string());
-    status_.recording.clear();
+    {
+        const std::scoped_lock lock(mutex_);
+        status_.recording.clear();
+    }
     return wrote ? path : std::filesystem::path{};
 }
 
@@ -204,21 +219,23 @@ void VideoStream::open_output_locked()
     auto out = std::make_unique<Output>();
     out->path = pending_path_;
     pending_path_.clear();
-    status_.waiting_for_keyframe = false;
+    {
+        const std::scoped_lock lock(mutex_);
+        status_.waiting_for_keyframe = false;
+    }
 
+    // input_ is set once by the reader thread (the only caller) before packets flow.
     const std::string path = out->path.string();
     int rc = avformat_alloc_output_context2(&out->context, nullptr, "mp4", path.c_str());
     if (rc < 0 || out->context == nullptr)
     {
-        status_.error = "cannot create " + path + ": " + av_error(rc);
-        applog::error("video", status_.error);
+        set_error("cannot create " + path + ": " + av_error(rc));
         return;
     }
     AVStream* st = avformat_new_stream(out->context, nullptr);
     if (st == nullptr || avcodec_parameters_copy(st->codecpar, input_->stream()->codecpar) < 0)
     {
-        status_.error = "cannot set up the MP4 stream";
-        applog::error("video", status_.error);
+        set_error("cannot set up the MP4 stream");
         return;
     }
     st->codecpar->codec_tag = 0;
@@ -226,19 +243,20 @@ void VideoStream::open_output_locked()
     rc = avio_open(&out->context->pb, path.c_str(), AVIO_FLAG_WRITE);
     if (rc < 0)
     {
-        status_.error = "cannot open " + path + ": " + av_error(rc);
-        applog::error("video", status_.error);
+        set_error("cannot open " + path + ": " + av_error(rc));
         return;
     }
     rc = avformat_write_header(out->context, nullptr);
     if (rc < 0)
     {
-        status_.error = "cannot write MP4 header: " + av_error(rc);
-        applog::error("video", status_.error);
+        set_error("cannot write MP4 header: " + av_error(rc));
         return;
     }
     out->header_written = true;
-    status_.recording = path;
+    {
+        const std::scoped_lock lock(mutex_);
+        status_.recording = path;
+    }
     applog::info("video", "recording to " + path);
     output_ = std::move(out);
 }
@@ -353,8 +371,8 @@ void VideoStream::run(const std::stop_token& stop)
                 ++status_.frames;
             }
         }
-        const std::scoped_lock lock(mutex_);
         {
+            const std::scoped_lock lock(mutex_);
             const auto now = std::chrono::steady_clock::now();
             if (status_.packets > 0 && now - last_packet_ > kVideoGap)
             {
@@ -362,6 +380,10 @@ void VideoStream::run(const std::stop_token& stop)
             }
             ++status_.packets;
             last_packet_ = now;
+        }
+        // Recording: disk writes hold output_mutex_ only, never the picture lock.
+        {
+            const std::scoped_lock out_lock(output_mutex_);
             // AV_PKT_FLAG_KEY is an int macro: test the bit on an unsigned copy.
             const bool key = (static_cast<unsigned>(packet->flags) &
                               static_cast<unsigned>(AV_PKT_FLAG_KEY)) != 0;
@@ -392,8 +414,7 @@ void VideoStream::run(const std::stop_token& stop)
                 rc = av_interleaved_write_frame(output_->context, packet.get());
                 if (rc < 0)
                 {
-                    status_.error = "write failed: " + av_error(rc);
-                    applog::error("video", status_.error);
+                    set_error("write failed: " + av_error(rc));
                     close_output_locked();
                 }
             }

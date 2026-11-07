@@ -1433,6 +1433,25 @@ void CommandProcessor::open_manual_window(std::string_view mode)
     }
 }
 
+// True while the window has not read its input for kStaleInput; says so once per episode.
+bool CommandProcessor::window_input_stale(bool& said)
+{
+    const auto age = viewer_->input_age();
+    const bool stale = age > kStaleInput;
+    if (stale && !said)
+    {
+        applog::warn("cli", "video window input is " + applog::ms(age) + " old: hovering");
+        out_ << "video window not responding: hovering\n" << std::flush;
+    }
+    else if (!stale && said)
+    {
+        applog::info("cli", "video window input is fresh again");
+        out_ << "video window responds again\n" << std::flush;
+    }
+    said = stale;
+    return stale;
+}
+
 void CommandProcessor::keyboard_mode()
 {
     if (!airborne_)
@@ -1453,6 +1472,7 @@ void CommandProcessor::keyboard_mode()
     }
     std::optional<std::chrono::steady_clock::time_point> last_sample;
     std::string reason = "command mode";
+    bool stale_said = false;
     try
     {
         for (;;)
@@ -1471,6 +1491,13 @@ void CommandProcessor::keyboard_mode()
             if (std::ranges::find(presses, "escape") != presses.end())
             {
                 break;
+            }
+            if (window_input_stale(stale_said))
+            {
+                drone_.rc(0, 0, 0, 0);
+                feed_motion(last_sample);
+                sleep_(kKeyboardPeriod);
+                continue;
             }
             const RcSticks s =
                 sticks_from_keys(viewer_->pressed_keys(), key_layout_, keyboard_speed_);
@@ -1537,6 +1564,7 @@ void CommandProcessor::joystick_mode()
     try
     {
         bool waiting_shown = false;
+        bool stale_said = false;
         for (;;)
         {
             if (interrupted_())
@@ -1553,6 +1581,16 @@ void CommandProcessor::joystick_mode()
             if (std::ranges::find(keys, "escape") != keys.end())
             {
                 break;
+            }
+            if (window_input_stale(stale_said))
+            {
+                hover();
+                if (airborne_)
+                {
+                    feed_motion(last_sample);
+                }
+                sleep_(kKeyboardPeriod);
+                continue;
             }
             const auto buttons = viewer_->take_button_presses();
             const auto pad = viewer_->gamepad();

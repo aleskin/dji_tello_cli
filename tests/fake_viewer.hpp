@@ -2,6 +2,7 @@
 
 #include "video/viewer.hpp"
 
+#include <chrono>
 #include <functional>
 #include <optional>
 #include <set>
@@ -61,6 +62,10 @@ public:
     {
         return std::exchange(button_presses, {});
     }
+    [[nodiscard]] std::chrono::steady_clock::duration input_age() const override
+    {
+        return age;
+    }
 
     video::ViewerSources sources;
     bool open = true;
@@ -68,6 +73,7 @@ public:
     std::vector<std::string> presses;
     std::optional<video::Gamepad> pad;
     std::vector<std::string> button_presses;
+    std::chrono::steady_clock::duration age{};
     int polls = 0;
     std::function<void(FakeViewer&)> on_poll;
 

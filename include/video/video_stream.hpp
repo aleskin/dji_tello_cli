@@ -76,16 +76,20 @@ private:
     struct Output; // FFmpeg muxer state
 
     void run(const std::stop_token& stop);
-    void open_output_locked(); // mutex_ held
+    void open_output_locked(); // output_mutex_ held
     std::filesystem::path close_output_locked();
+    void set_error(const std::string& error); // takes mutex_
 
     std::string source_;
     // Polled by FFmpeg while it blocks on the socket; declared before input_ so it outlives it.
     std::atomic<bool> stopping_{false};
-    mutable std::mutex mutex_; // everything below; the reader thread writes packets under it
-    std::unique_ptr<Input> input_;
+    // The recording: file I/O (which can stall on a slow disk) happens under this lock only, so
+    // the picture and the status stay available. Taken before mutex_ when both are needed.
+    std::mutex output_mutex_;
     std::unique_ptr<Output> output_;
     std::filesystem::path pending_path_;
+    mutable std::mutex mutex_; // the decoded picture and the status below
+    std::unique_ptr<Input> input_;
     StreamStatus status_;
     std::chrono::steady_clock::time_point last_packet_{};
     std::jthread thread_; // last: started after everything it uses exists

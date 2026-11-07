@@ -64,6 +64,7 @@ Options de lancement : `--host`, `--port`, `--state-port` (0 — sans télémét
   `emergency` ; un second `exit` quitte quand même).
 - **Atterrissage d'urgence :** si le programme meurt en vol (plantage, `kill`, terminal ou pipe de sortie fermés), il
   envoie `land` avant et le note dans le journal. Si une commande bloque 45 s, le drone atterrit aussi.
+  Si la fenêtre vidéo en `keyboard`/`joystick` ne lit plus clavier ni manette pendant 0,5 s, le drone reste sur place.
 - Non couvert : `kill -9`, portable à plat, perte du Wi-Fi — le Tello atterrit alors seul après 15 s
   sans commande.
 - **`emergency`** coupe les moteurs immédiatement, sans confirmation — le drone tombe. Uniquement en dernier recours.

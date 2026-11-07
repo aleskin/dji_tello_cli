@@ -134,6 +134,36 @@ TEST_F(KeyboardCli, KeysBecomeRcUntilEscape)
     EXPECT_TRUE(cli.airborne());
 }
 
+TEST_F(KeyboardCli, HungWindowHoversUntilItRespondsAgain)
+{
+    cli.execute_line("takeoff");
+    script = [](FakeViewer& v)
+    {
+        v.pressed = {"w"}; // held when the window hung: must not keep flying
+        switch (v.polls)
+        {
+        case 3:
+            v.age = cli::kStaleInput + std::chrono::milliseconds(1);
+            break;
+        case 5:
+            v.age = {};
+            break;
+        case 6:
+            v.presses = {"escape"};
+            break;
+        default:
+            break;
+        }
+    };
+    cli.execute_line("keyboard");
+    EXPECT_EQ(mock->sent, (std::vector<std::string>{"rc 0 40 0 0", "rc 0 0 0 0", "rc 0 0 0 0",
+                                                    "rc 0 40 0 0", "rc 0 0 0 0"}));
+    const std::string text = out.str();
+    EXPECT_NE(text.find("video window not responding: hovering"), std::string::npos) << text;
+    EXPECT_EQ(text.find("not responding"), text.rfind("not responding")) << text; // said once
+    EXPECT_NE(text.find("video window responds again"), std::string::npos) << text;
+}
+
 TEST_F(KeyboardCli, RecordedKeyboardFlightIsAComment)
 {
     const auto file = std::filesystem::temp_directory_path() /

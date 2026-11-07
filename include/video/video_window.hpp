@@ -3,6 +3,7 @@
 #include "video/viewer.hpp"
 
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <mutex>
 #include <optional>
@@ -33,6 +34,7 @@ public:
     std::vector<std::string> take_key_presses() override;
     [[nodiscard]] std::optional<Gamepad> gamepad() const override;
     std::vector<std::string> take_button_presses() override;
+    [[nodiscard]] std::chrono::steady_clock::duration input_age() const override;
 
     // Pictures drawn so far (tests).
     [[nodiscard]] std::int64_t pictures_shown() const
@@ -53,6 +55,7 @@ private:
     std::vector<std::string> presses_;
     std::optional<Gamepad> pad_;
     std::vector<std::string> button_presses_;
+    std::chrono::steady_clock::time_point input_at_ = std::chrono::steady_clock::now();
     std::jthread thread_; // last: started after everything it uses exists
 };
 

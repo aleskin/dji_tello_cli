@@ -286,6 +286,12 @@ std::vector<std::string> VideoWindow::take_button_presses()
     return std::exchange(button_presses_, {});
 }
 
+std::chrono::steady_clock::duration VideoWindow::input_age() const
+{
+    const std::scoped_lock lock(mutex_);
+    return std::chrono::steady_clock::now() - input_at_;
+}
+
 void VideoWindow::run(const std::stop_token& stop)
 {
     auto fail = [this](const std::string& what)
@@ -417,6 +423,7 @@ void VideoWindow::run(const std::stop_token& stop)
             }
             const std::scoped_lock lock(mutex_);
             pad_ = std::move(state);
+            input_at_ = std::chrono::steady_clock::now();
         }
 
         if (auto picture = sources_.picture ? sources_.picture(number) : std::nullopt)

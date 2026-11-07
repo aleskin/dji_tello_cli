@@ -2,6 +2,7 @@
 
 #include "video/video_stream.hpp"
 
+#include <chrono>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -78,6 +79,13 @@ public:
 
     // Controller buttons pressed since the last call, in order.
     virtual std::vector<std::string> take_button_presses()
+    {
+        return {};
+    }
+
+    // How long ago the window last read its keys and controller. A hung window keeps reporting
+    // the keys and sticks it saw last, so manual flight stops trusting them once this grows.
+    [[nodiscard]] virtual std::chrono::steady_clock::duration input_age() const
     {
         return {};
     }

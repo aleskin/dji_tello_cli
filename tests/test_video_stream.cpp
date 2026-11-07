@@ -17,6 +17,12 @@ extern "C"
 
 #include <gtest/gtest.h>
 
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+#include <array>
+#include <atomic>
 #include <chrono>
 #include <filesystem>
 #include <memory>
@@ -159,6 +165,56 @@ std::pair<int, int> jpeg_size(const std::filesystem::path& file)
         avformat_close_input(&ctx);
     }
     return size;
+}
+
+TEST_F(VideoCliTest, StalledRecordingDiskDoesNotHoldThePicture)
+{
+    std::filesystem::create_directories(dir);
+    const auto fifo = dir / "stalled.mp4";
+    ASSERT_EQ(::mkfifo(fifo.c_str(), 0600), 0);
+    std::optional<video::VideoStream> stream;
+    stream.emplace(drone->video_source());
+    drone->start_video();
+    ASSERT_TRUE(stream->wait_for_frame(milliseconds(5000)));
+    // Opening a FIFO nobody reads blocks: the reader thread hangs inside the recording code,
+    // like a write to a stalled disk.
+    stream->start_recording(fifo);
+    std::atomic<bool> answered{false};
+    std::thread probe(
+        [&stream, &answered]
+        {
+            const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+            while (stream->status().waiting_for_keyframe &&
+                   std::chrono::steady_clock::now() < until)
+            {
+                std::this_thread::sleep_for(milliseconds(10));
+            }
+            std::this_thread::sleep_for(milliseconds(200));
+            answered.store(stream->latest_picture(0).has_value());
+        });
+    const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(7);
+    while (!answered.load() && std::chrono::steady_clock::now() < until)
+    {
+        std::this_thread::sleep_for(milliseconds(10));
+    }
+    EXPECT_TRUE(answered.load()) << "the picture waited for the stalled recording";
+    // Let the writer go: read the FIFO until the stream closes it.
+    const int reader = ::open(fifo.c_str(), O_RDONLY | O_NONBLOCK);
+    ASSERT_GE(reader, 0);
+    ::fcntl(reader, F_SETFL, 0);
+    std::thread drain(
+        [reader]
+        {
+            std::array<char, 4096> buf{};
+            while (::read(reader, buf.data(), buf.size()) > 0)
+            {
+            }
+        });
+    probe.join();
+    stream.reset();
+    drain.join();
+    ::close(reader);
+    drone->stop_video();
 }
 
 TEST_F(VideoCliTest, PhotoStartsTheCameraAndSavesJpeg)
