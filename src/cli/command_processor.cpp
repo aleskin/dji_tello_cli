@@ -305,6 +305,7 @@ void CommandProcessor::register_commands()
         [this](const Args&)
         {
             drone_.land();
+            confirm_landed();
             airborne_ = false;
             if (position_)
             {
@@ -1431,6 +1432,48 @@ void CommandProcessor::open_manual_window(std::string_view mode)
         throw UsageError(std::string(mode) + ": no window" +
                          (viewer_ ? " (" + viewer_->error() + ")" : std::string()));
     }
+}
+
+// The drone answered 'ok' to land; with telemetry, believe it only when the height says so.
+// No fresh telemetry: nothing to check against, the reply stands. Height stays up: the 'ok' may
+// belong to an earlier command that timed out, so the drone stays "in the air" for the safety
+// paths.
+void CommandProcessor::confirm_landed()
+{
+    if (telemetry_ == nullptr)
+    {
+        return;
+    }
+    const auto replied = std::chrono::steady_clock::now();
+    const auto until = replied + kLandConfirmWait;
+    std::optional<int> height;
+    for (;;)
+    {
+        const auto snap = telemetry_->latest();
+        if (snap && snap->received >= replied)
+        {
+            height = snap->state.h;
+            if (*height <= kLandedHeightCm)
+            {
+                applog::info("cli", "land confirmed by telemetry: h=" + std::to_string(*height));
+                return;
+            }
+        }
+        if (std::chrono::steady_clock::now() >= until)
+        {
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+    if (!height)
+    {
+        applog::warn("cli", "land not checked: no fresh telemetry");
+        return;
+    }
+    applog::error("cli", "land replied ok but telemetry shows h=" + std::to_string(*height) +
+                             " cm: treated as still in the air");
+    throw drone::DroneError("drone answered ok, but telemetry shows h=" + std::to_string(*height) +
+                            " cm: it may still be flying, 'land' again");
 }
 
 // True while the window has not read its input for kStaleInput; says so once per episode.

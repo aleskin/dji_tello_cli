@@ -109,6 +109,11 @@ constexpr std::chrono::milliseconds kKeyboardPeriod{50}; // rc at 20 Hz
 // Window input older than this is not trusted: manual flight hovers until the window responds.
 constexpr std::chrono::milliseconds kStaleInput{500};
 
+// After 'land' answers ok, fresh telemetry must show the drone down (h at most kLandedHeightCm)
+// within kLandConfirmWait. A stale 'ok' from an earlier timed-out command is caught this way.
+constexpr std::chrono::milliseconds kLandConfirmWait{2000};
+constexpr int kLandedHeightCm = 30;
+
 // Interactive command layer. Knows only DroneBase: which model sits behind it decides what works.
 class CommandProcessor
 {
@@ -234,6 +239,7 @@ private:
     bool run_alias(const std::string& body, std::string_view name, const Args& args);
     void keyboard_mode();
     bool window_input_stale(bool& said);
+    void confirm_landed();
     void joystick_mode();
     void open_manual_window(std::string_view mode);
     void feed_motion(std::optional<std::chrono::steady_clock::time_point>& last);

@@ -107,6 +107,9 @@ metre flown; `return` flies straight legs back by this estimate, it is not a GPS
   went away), it lands the drone and exits with an error code.
 - **Hung window**: in `keyboard` / `joystick` mode, if the video window stops reading the
   keys and the gamepad for 0.5 s, the drone hovers (`rc 0 0 0 0`) until the window responds.
+- **Land check**: with telemetry, `land` counts only when the height drops to the ground within
+  2 s; an `ok` with the drone still up (a late reply to an earlier command) is an error and the
+  drone stays "in the air" for exit and Ctrl+C.
 - **Hang watchdog**: a command stuck for 45 s without talking to the drone (outside planned
   pauses) stops the keepalive and lands the drone.
 - Not covered: `kill -9`, a dead laptop, lost Wi-Fi — then the Tello's own auto-landing after 15 s

@@ -2,7 +2,9 @@
 
 #include "cli/command_processor.hpp"
 #include "mock_transport.hpp"
+#include "tello/state_listener.hpp"
 #include "tello/tello_family.hpp"
+#include "tello/udp_socket.hpp"
 
 #include <gtest/gtest.h>
 
@@ -12,6 +14,7 @@
 #include <fstream>
 #include <memory>
 #include <sstream>
+#include <thread>
 
 namespace
 {
@@ -296,6 +299,68 @@ TEST_F(ClassicCli, MissionsDoNotNest)
     EXPECT_FALSE(cli.run_mission(plan, "outer"));
     std::filesystem::remove(path);
     EXPECT_NE(out.str().find("missions do not nest"), std::string::npos);
+    EXPECT_EQ(mock->requests, (std::vector<std::string>{"takeoff", "land"}));
+}
+
+// 'land' answered ok while telemetry may say otherwise: a late reply to an earlier command.
+class LandTelemetryCli : public ::testing::Test
+{
+protected:
+    // Sends "h:<height>;" telemetry to the listener every 20 ms until the test ends.
+    void send_height(int height)
+    {
+        sender = std::jthread(
+            [this, height](const std::stop_token& stop)
+            {
+                const tello::UdpSocket socket("127.0.0.1", 0);
+                while (!stop.stop_requested())
+                {
+                    socket.send_to("h:" + std::to_string(height) + ";", "127.0.0.1",
+                                   listener.local_port());
+                    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+                }
+            });
+    }
+
+    std::shared_ptr<MockTransport> mock = std::make_shared<MockTransport>();
+    tello::TelloClassic drone{mock};
+    std::ostringstream out;
+    tello::StateListener listener{"127.0.0.1", 0};
+    cli::CommandProcessor cli{drone,
+                              out,
+                              {"127.0.0.1", 8889, 8890, {}, {}},
+                              &listener,
+                              [](std::chrono::milliseconds)
+                              {
+                              }};
+    std::jthread sender; // last: stops before the listener goes away
+};
+
+TEST_F(LandTelemetryCli, LandConfirmedWhenTelemetryShowsTheGround)
+{
+    send_height(0);
+    EXPECT_TRUE(cli.execute_line("takeoff; land"));
+    EXPECT_EQ(out.str().find("error"), std::string::npos) << out.str();
+    EXPECT_TRUE(cli.land_before_exit());
+    EXPECT_EQ(mock->requests, (std::vector<std::string>{"takeoff", "land"}));
+}
+
+TEST_F(LandTelemetryCli, OkWithTheDroneStillUpIsNotALanding)
+{
+    send_height(120);
+    EXPECT_TRUE(cli.execute_line("takeoff; land"));
+    EXPECT_NE(out.str().find("telemetry shows h=120 cm: it may still be flying"), std::string::npos)
+        << out.str();
+    send_height(0);
+    EXPECT_TRUE(cli.land_before_exit()); // still in the air: lands again
+    EXPECT_EQ(mock->requests, (std::vector<std::string>{"takeoff", "land", "land"}));
+}
+
+TEST_F(LandTelemetryCli, WithoutFreshTelemetryTheReplyStands)
+{
+    EXPECT_TRUE(cli.execute_line("takeoff; land"));
+    EXPECT_EQ(out.str().find("error"), std::string::npos) << out.str();
+    EXPECT_TRUE(cli.land_before_exit());
     EXPECT_EQ(mock->requests, (std::vector<std::string>{"takeoff", "land"}));
 }
 

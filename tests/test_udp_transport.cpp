@@ -63,5 +63,28 @@ TEST(UdpTransport, StaleReplyIsNotTakenForTheNextOne)
     responder.join();
 }
 
+// The reply to a timed-out command arrives after the next command went out and that one is lost:
+// the transport cannot tell (no ids), it takes the late reply. The CLI checks 'land' by telemetry.
+TEST(UdpTransport, LateReplyAfterTheNextSendIsTakenForIt)
+{
+    UdpSocket peer("127.0.0.1", 0);
+    UdpTransport transport("127.0.0.1", peer.local_port());
+
+    EXPECT_THROW((void)transport.request("forward 100", milliseconds(50)), drone::NoReply);
+    const auto first = peer.receive(milliseconds(1000));
+    ASSERT_TRUE(first);
+
+    std::thread responder(
+        [&peer, &first]
+        {
+            const auto land = peer.receive(milliseconds(2000)); // "land": dropped, never done
+            ASSERT_TRUE(land);
+            EXPECT_EQ(land->data, "land");
+            peer.send_to("ok", first->from_host, first->from_port); // late, for "forward 100"
+        });
+    EXPECT_EQ(transport.request("land", milliseconds(2000)), "ok");
+    responder.join();
+}
+
 } // namespace
 } // namespace tello

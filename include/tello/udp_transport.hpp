@@ -29,9 +29,10 @@ private:
     std::string host_;
     std::uint16_t port_;
     UdpSocket socket_;
-    UdpSocket::Peer peer_;  // the drone, resolved up front for send_now()
-    std::mutex mutex_;      // one request in flight: replies carry no id
-    std::string last_sent_; // fire-and-forget repeats (rc at 20 Hz) are logged once
+    UdpSocket::Peer peer_;    // the drone, resolved up front for send_now()
+    std::mutex mutex_;        // one request in flight: replies carry no id
+    bool unanswered_ = false; // the previous request timed out: its reply may still come
+    std::string last_sent_;   // fire-and-forget repeats (rc at 20 Hz) are logged once
     int repeats_ = 0;
     void flush_repeats_locked();
 };
