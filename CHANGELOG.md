@@ -5,6 +5,18 @@ Format: `## [version] — YYYY-MM-DD` followed by grouped changes. Written by `m
 
 ---
 
+## [0.1.2] — 2026-11-07
+
+### Fixed
+- **[TEL-00063]** cli: confirm land by telemetry, a late ok is not a landing
+- **[TEL-00062]** video: record outside the picture lock, hover on stale window input
+- **[TEL-00061]** cli: land and exit when the console output pipe closes
+- **[TEL-00060]** core: short keepalive wait, send emergency ahead of the queue
+- **[TEL-00059]** core: retry a failed low-battery landing until confirmed
+- **[TEL-00058]** cli: treat the drone as airborne when takeoff gets no reply
+
+---
+
 ## [0.1.1] — 2026-11-05
 
 ### Added
