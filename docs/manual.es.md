@@ -65,6 +65,8 @@ Opciones de inicio: `--host`, `--port`, `--state-port` (0 — sin telemetría), 
   envía `land` antes y lo anota en el registro. Si un comando se cuelga 45 s, el dron también aterriza.
   Si la ventana de vídeo en `keyboard`/`joystick` no lee teclas ni mando durante 0,5 s, el dron se queda quieto.
   `land` solo cuenta si la telemetría muestra el suelo en 2 s; si no, error y el dron se considera en el aire.
+  Si el dron no responde 15 s (apagado, fuera de alcance, portátil en otra Wi-Fi), el programa avisa
+  «connection to the drone lost» y lo da por aterrizado: `land`/`exit` no esperan. Al volver: «drone connected again».
 - No cubierto: `kill -9`, portátil sin batería, pérdida del Wi-Fi — entonces el Tello aterriza solo
   tras 15 s sin comandos.
 - **`emergency`** apaga los motores al instante, sin confirmación — el dron cae. Solo en caso extremo.

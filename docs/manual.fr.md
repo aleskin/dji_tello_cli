@@ -66,6 +66,8 @@ Options de lancement : `--host`, `--port`, `--state-port` (0 — sans télémét
   envoie `land` avant et le note dans le journal. Si une commande bloque 45 s, le drone atterrit aussi.
   Si la fenêtre vidéo en `keyboard`/`joystick` ne lit plus clavier ni manette pendant 0,5 s, le drone reste sur place.
   `land` ne compte que si la télémétrie montre le sol en 2 s ; sinon erreur, le drone est considéré en vol.
+  Si le drone ne répond plus pendant 15 s (éteint, hors de portée, portable sur un autre Wi-Fi), le programme affiche
+  « connection to the drone lost » et le considère posé : `land`/`exit` n'attendent pas. À son retour : « drone connected again ».
 - Non couvert : `kill -9`, portable à plat, perte du Wi-Fi — le Tello atterrit alors seul après 15 s
   sans commande.
 - **`emergency`** coupe les moteurs immédiatement, sans confirmation — le drone tombe. Uniquement en dernier recours.

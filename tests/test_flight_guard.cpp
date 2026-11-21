@@ -115,6 +115,44 @@ TEST(FlightGuardTest, KeepaliveFailureReportedOncePerOutage)
     EXPECT_EQ(messages.count_containing("answers again"), 1u);
 }
 
+TEST(FlightGuardTest, LostLinkSaidOnceThenConnectedAgain)
+{
+    auto mock = std::make_shared<MockTransport>();
+    tello::TelloClassic drone(mock, tello::DroneTimeouts{milliseconds(10), milliseconds(10)});
+    drone.connect();
+    for (int i = 0; i < 4; ++i)
+    {
+        mock->reply(std::nullopt);
+    }
+    Messages messages;
+    {
+        auto settings = fast();
+        settings.lost_after = milliseconds(150);
+        drone::FlightGuard guard(drone, settings, {}, messages.sink());
+        std::this_thread::sleep_for(milliseconds(800));
+    }
+    EXPECT_EQ(messages.count_containing("connection to the drone lost"), 1u);
+    EXPECT_EQ(messages.count_containing("drone connected again"), 1u);
+    EXPECT_EQ(messages.count_containing("answers again"), 0u);
+}
+
+TEST(FlightGuardTest, DroneSwitchedOnLaterConnectsByItself)
+{
+    auto mock = std::make_shared<MockTransport>();
+    tello::TelloClassic drone(mock, tello::DroneTimeouts{milliseconds(10), milliseconds(10)});
+    mock->reply(std::nullopt);
+    EXPECT_THROW(drone.connect(), drone::NoReply); // the drone is still off
+    mock->reply(std::nullopt);
+    Messages messages;
+    {
+        drone::FlightGuard guard(drone, fast(), {}, messages.sink());
+        std::this_thread::sleep_for(milliseconds(400));
+    }
+    EXPECT_EQ(messages.count_containing("no drone"), 1u);
+    EXPECT_EQ(messages.count_containing("drone connected again"), 1u);
+    EXPECT_TRUE(drone.silent_for());
+}
+
 TEST(FlightGuardTest, LowBatteryWarnsThenLandsOnce)
 {
     auto mock = std::make_shared<MockTransport>();

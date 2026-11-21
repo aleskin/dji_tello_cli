@@ -114,6 +114,10 @@ constexpr std::chrono::milliseconds kStaleInput{500};
 constexpr std::chrono::milliseconds kLandConfirmWait{2000};
 constexpr int kLandedHeightCm = 30;
 
+// No reply and no telemetry this long while commands went out: the drone is off or out of reach.
+// A Tello that hears nothing for 15 s lands by itself, so a "flying" drone counts as landed.
+constexpr std::chrono::milliseconds kDroneLostAfter{15'000};
+
 // Interactive command layer. Knows only DroneBase: which model sits behind it decides what works.
 class CommandProcessor
 {
@@ -170,6 +174,12 @@ public:
     void set_key_layout(KeyLayout layout)
     {
         key_layout_ = std::move(layout);
+    }
+
+    // Tests shorten kDroneLostAfter.
+    void set_drone_lost_after(std::chrono::milliseconds after)
+    {
+        lost_after_ = after;
     }
 
     // Caller validates the range (10..100), see "kbspeed".
@@ -240,6 +250,8 @@ private:
     void keyboard_mode();
     bool window_input_stale(bool& said);
     void confirm_landed();
+    [[nodiscard]] std::optional<std::chrono::steady_clock::duration> drone_silence() const;
+    bool forget_lost_flight();
     void joystick_mode();
     void open_manual_window(std::string_view mode);
     void feed_motion(std::optional<std::chrono::steady_clock::time_point>& last);
@@ -262,6 +274,7 @@ private:
     const tello::StateListener* telemetry_;
     Sleep sleep_;
     Interrupted interrupted_;
+    std::chrono::milliseconds lost_after_ = kDroneLostAfter;
     std::vector<Entry> entries_;
     std::vector<CommandInfo> commands_;
     bool exit_requested_ = false;

@@ -94,11 +94,16 @@ void FlightGuard::check_keepalive()
     try
     {
         drone_.keepalive();
-        if (keepalive_failing_)
+        if (lost_)
+        {
+            say("drone connected again: SDK mode restored by keepalive");
+        }
+        else if (keepalive_failing_)
         {
             say("keepalive: drone answers again");
         }
         keepalive_failing_ = false;
+        lost_ = false;
     }
     catch (const NotSupported&)
     {
@@ -112,7 +117,32 @@ void FlightGuard::check_keepalive()
             say(std::string("keepalive failed: ") + e.what());
         }
         keepalive_failing_ = true;
+        check_lost();
     }
+}
+
+void FlightGuard::check_lost()
+{
+    if (lost_)
+    {
+        return;
+    }
+    const auto silent = drone_.silent_for();
+    if (!silent)
+    {
+        lost_ = true;
+        say("no drone: it has not answered yet; switch it on and join its Wi-Fi, the program "
+            "connects by itself");
+        return;
+    }
+    if (*silent < settings_.lost_after)
+    {
+        return;
+    }
+    lost_ = true;
+    say("connection to the drone lost: no answer for " + applog::ms(*silent) +
+        " (drone off, out of range or this PC left its Wi-Fi); a flying Tello lands by itself "
+        "15 s after the last command it got");
 }
 
 void FlightGuard::check_battery()

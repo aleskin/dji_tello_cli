@@ -3,6 +3,7 @@
 #include <atomic>
 #include <chrono>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <string_view>
@@ -134,11 +135,18 @@ public:
     // The hang watchdog uses it to tell a busy program from a stuck one.
     [[nodiscard]] std::chrono::steady_clock::duration command_idle_for() const;
 
+    // Time since the drone last answered anything ('ok', 'error', a value); nullopt: it never
+    // did. Silence while commands go out means the drone is off, out of range or unreachable.
+    [[nodiscard]] std::optional<std::chrono::steady_clock::duration> silent_for() const;
+
 protected:
     DroneBase() = default;
 
     // Families call this for every command sent, reply or not; keepalive passes false.
     void mark_activity(bool command = true);
+
+    // Families call this for every reply that came back from the drone.
+    void mark_reply();
 
     // Throws NotSupported naming this model and the command.
     [[noreturn]] void unsupported(std::string_view command) const;
@@ -147,6 +155,7 @@ private:
     // steady_clock ticks; atomic because the keepalive thread reads it while the CLI commands.
     std::atomic<std::chrono::steady_clock::rep> last_activity_{0};
     std::atomic<std::chrono::steady_clock::rep> last_command_{0};
+    std::atomic<std::chrono::steady_clock::rep> last_reply_{0};
 };
 
 } // namespace drone

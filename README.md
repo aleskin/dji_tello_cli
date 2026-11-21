@@ -110,6 +110,11 @@ metre flown; `return` flies straight legs back by this estimate, it is not a GPS
 - **Land check**: with telemetry, `land` counts only when the height drops to the ground within
   2 s; an `ok` with the drone still up (a late reply to an earlier command) is an error and the
   drone stays "in the air" for exit and Ctrl+C.
+- **Lost link**: no answer and no telemetry for 15 s while commands go out (drone switched off,
+  out of range, the laptop on another network) prints "connection to the drone lost" once; the
+  drone then counts as landed (the Tello lands itself after 15 s without commands), so `land`,
+  `exit` and Ctrl+C do not wait for a reply. Keepalive keeps trying: when the drone answers,
+  "drone connected again" — SDK mode is back without `connect`.
 - **Hang watchdog**: a command stuck for 45 s without talking to the drone (outside planned
   pauses) stops the keepalive and lands the drone.
 - Not covered: `kill -9`, a dead laptop, lost Wi-Fi — then the Tello's own auto-landing after 15 s

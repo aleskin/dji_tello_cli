@@ -221,6 +221,87 @@ TEST_F(SafeExitCli, StalledOnlyWhileACommandRunsInTheAir)
     EXPECT_EQ(stalled_in_pause, std::chrono::steady_clock::duration::zero()); // planned pause
 }
 
+// --- Drone gone silent (TEL-00065): switched off, out of range, PC on another network. ---
+
+TEST(SilenceTest, CountsFromTheLastReply)
+{
+    auto mock = std::make_shared<MockTransport>();
+    tello::TelloClassic drone(mock, tello::DroneTimeouts{milliseconds(10), milliseconds(10)});
+    EXPECT_FALSE(drone.silent_for());
+    drone.connect();
+    ASSERT_TRUE(drone.silent_for());
+    EXPECT_LT(*drone.silent_for(), milliseconds(50));
+    std::this_thread::sleep_for(milliseconds(60));
+    mock->reply(std::nullopt);
+    EXPECT_THROW(drone.keepalive(), drone::NoReply);
+    EXPECT_GE(*drone.silent_for(), milliseconds(60)); // no answer: the silence goes on
+    mock->reply("error");
+    EXPECT_THROW(drone.land(), drone::DroneError);
+    EXPECT_LT(*drone.silent_for(), milliseconds(50)); // 'error' is an answer too
+}
+
+class SilentDroneCli : public SafeExitCli
+{
+protected:
+    void SetUp() override
+    {
+        cli.set_drone_lost_after(milliseconds(50));
+        cli.execute_line("takeoff");
+        ASSERT_TRUE(cli.airborne());
+    }
+
+    // The drone stops answering: keepalive goes out and gets nothing back.
+    void go_silent()
+    {
+        std::this_thread::sleep_for(milliseconds(20));
+        mock->reply(std::nullopt);
+        EXPECT_THROW(drone.keepalive(), drone::NoReply);
+        std::this_thread::sleep_for(milliseconds(60));
+    }
+};
+
+TEST_F(SilentDroneCli, ExitDoesNotWaitForASilentDrone)
+{
+    go_silent();
+    EXPECT_FALSE(cli.execute_line("exit"));
+    EXPECT_TRUE(cli.land_before_exit());
+    EXPECT_EQ(count(mock->requests, "land"), 0u);
+    EXPECT_FALSE(cli.airborne());
+    EXPECT_NE(out.str().find("landed by itself or is off"), std::string::npos);
+}
+
+TEST_F(SilentDroneCli, CtrlCDoesNotWaitForASilentDrone)
+{
+    go_silent();
+    cli.on_interrupt();
+    EXPECT_EQ(count(mock->requests, "land"), 0u);
+    EXPECT_FALSE(cli.airborne());
+}
+
+TEST_F(SilentDroneCli, LandIsNotSentToASilentDrone)
+{
+    go_silent();
+    EXPECT_TRUE(cli.execute_line("land"));
+    EXPECT_EQ(count(mock->requests, "land"), 0u);
+    EXPECT_FALSE(cli.airborne());
+    EXPECT_NE(out.str().find("land not sent"), std::string::npos);
+}
+
+TEST_F(SilentDroneCli, QuietWithoutRequestsIsNotSilence)
+{
+    std::this_thread::sleep_for(milliseconds(80)); // nobody asked the drone anything
+    EXPECT_TRUE(cli.land_before_exit());
+    EXPECT_EQ(count(mock->requests, "land"), 1u);
+}
+
+TEST_F(SilentDroneCli, AnswerAgainKeepsItFlying)
+{
+    go_silent();
+    drone.keepalive(); // the drone is back before anyone looked
+    EXPECT_TRUE(cli.execute_line("battery"));
+    EXPECT_TRUE(cli.airborne());
+}
+
 // --- Hang watchdog in FlightGuard. ---
 
 struct Messages

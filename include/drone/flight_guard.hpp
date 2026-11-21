@@ -23,6 +23,9 @@ struct GuardSettings
     std::chrono::milliseconds stuck_after{45'000};
     // A low-battery landing that failed is tried again this often while the battery stays low.
     std::chrono::milliseconds land_retry{3'000};
+    // No answer from the drone this long while keepalive goes out: the link is lost (drone off,
+    // out of range, this PC left its Wi-Fi). Tello lands by itself after 15 s without commands.
+    std::chrono::milliseconds lost_after{15'000};
 };
 
 // Background safety for a connected drone, working through DroneBase only:
@@ -49,6 +52,7 @@ private:
     void run(const std::stop_token& stop);
     bool check_stall(); // true while the program is stuck: no keepalive then
     void check_keepalive();
+    void check_lost(); // after a failed keepalive: says once that the drone is gone
     void check_battery();
     void say(const std::string& message) const;
 
@@ -60,6 +64,7 @@ private:
     bool stuck_ = false;
     bool keepalive_supported_ = true;
     bool keepalive_failing_ = false;
+    bool lost_ = false; // "connection lost" said; "connected again" once keepalive gets through
     bool warned_ = false;
     bool landed_ = false;   // low-battery landing confirmed
     int land_failures_ = 0; // failed low-battery landings in a row

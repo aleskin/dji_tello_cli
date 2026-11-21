@@ -63,6 +63,8 @@ Opcije pokretanja: `--host`, `--port`, `--state-port` (0 — bez telemetrije), `
   `land` i upiše to u dnevnik. Ako komanda visi 45 s, dron takođe sleće.
   Ako prozor videa u `keyboard`/`joystick` 0,5 s ne čita tastere i džojstik, dron lebdi u mestu.
   `land` važi samo ako telemetrija za 2 s pokaže visinu pri zemlji; inače greška, dron se smatra u vazduhu.
+  Ako dron ćuti 15 s (ugašen, daleko, laptop na drugom Wi-Fi-ju), program javlja „connection to the drone lost“
+  i smatra ga sletelim: `land`/`exit` ne čekaju. Kad se vrati: „drone connected again“.
 - Nije pokriveno: `kill -9`, prazan laptop, gubitak Wi-Fi veze — tada Tello sam sleće posle 15 s
   bez komandi.
 - **`emergency`** odmah gasi motore, bez potvrde — dron pada. Samo za krajnju nuždu.

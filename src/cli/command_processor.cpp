@@ -34,6 +34,11 @@ public:
     using std::runtime_error::runtime_error;
 };
 
+long long seconds(std::chrono::steady_clock::duration d)
+{
+    return std::chrono::duration_cast<std::chrono::seconds>(d).count();
+}
+
 std::vector<std::string_view> split(std::string_view s, std::string_view separators)
 {
     std::vector<std::string_view> out;
@@ -304,6 +309,13 @@ void CommandProcessor::register_commands()
     add({"land", {}, C::Flight, "land", "land", Capability::Land},
         [this](const Args&)
         {
+            if (const auto silent = drone_silence())
+            {
+                applog::warn("cli", "land not sent: drone silent for " + applog::ms(*silent));
+                out_ << "land not sent: no answer from the drone for " << seconds(*silent)
+                     << " s\n";
+                return;
+            }
             drone_.land();
             confirm_landed();
             airborne_ = false;
@@ -743,7 +755,7 @@ std::chrono::steady_clock::duration CommandProcessor::stalled_for() const
 
 bool CommandProcessor::land_before_exit()
 {
-    if (!airborne_)
+    if (!airborne_ || forget_lost_flight())
     {
         return true;
     }
@@ -873,7 +885,7 @@ bool CommandProcessor::run_mission_lines(std::istream& in, std::string_view name
 
 void CommandProcessor::on_interrupt()
 {
-    if (!airborne_)
+    if (!airborne_ || forget_lost_flight())
     {
         applog::info("cli", "Ctrl+C on the ground");
         return;
@@ -910,6 +922,7 @@ bool CommandProcessor::execute(std::string_view command)
         return false;
     }
     applog::Scope scope("cli", "'" + std::string(command) + "'");
+    forget_lost_flight();
     const bool record = recordable(entry->info, args);
     const bool was_airborne = airborne_;
     std::optional<drone::Position> before;
@@ -1474,6 +1487,53 @@ void CommandProcessor::confirm_landed()
                              " cm: treated as still in the air");
     throw drone::DroneError("drone answered ok, but telemetry shows h=" + std::to_string(*height) +
                             " cm: it may still be flying, 'land' again");
+}
+
+// How long the drone has been silent (no reply, no telemetry) although commands went out after
+// its last word; nullopt while it talks or the silence is shorter than lost_after_. Without a
+// command sent since, silence proves nothing (nobody asked).
+std::optional<std::chrono::steady_clock::duration> CommandProcessor::drone_silence() const
+{
+    auto silent = drone_.silent_for();
+    if (!silent)
+    {
+        return std::nullopt;
+    }
+    if (const auto snap = telemetry_ ? telemetry_->latest() : std::nullopt)
+    {
+        silent = std::min(*silent, std::chrono::steady_clock::now() - snap->received);
+    }
+    if (*silent < lost_after_ || drone_.idle_for() >= *silent)
+    {
+        return std::nullopt;
+    }
+    return silent;
+}
+
+// The drone was taken for flying but has gone silent: it has landed by itself (Tello auto-land)
+// or is off. Counted as on the ground, so land and exit do not wait for a reply that cannot come.
+bool CommandProcessor::forget_lost_flight()
+{
+    if (!airborne_)
+    {
+        return false;
+    }
+    const auto silent = drone_silence();
+    if (!silent)
+    {
+        return false;
+    }
+    airborne_ = false;
+    if (position_)
+    {
+        position_->on_land();
+    }
+    applog::warn("cli", "drone silent for " + applog::ms(*silent) +
+                            " while in the air: "
+                            "treated as landed");
+    out_ << "no answer from the drone for " << seconds(*silent)
+         << " s: it has landed by itself or is off; treated as on the ground\n";
+    return true;
 }
 
 // True while the window has not read its input for kStaleInput; says so once per episode.

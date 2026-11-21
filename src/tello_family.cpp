@@ -241,6 +241,7 @@ void TelloFamily::expect_ok(const std::string& command, bool counts_as_command,
 {
     mark_activity(counts_as_command);
     const std::string reply = transport_->request(command, timeout.value_or(timeouts_.action));
+    mark_reply();
     if (reply != "ok")
     {
         throw TelloError(command + ": " + (reply.empty() ? std::string("empty reply") : reply));
@@ -256,6 +257,7 @@ std::string TelloFamily::query(std::string_view command)
         try
         {
             reply = transport_->request(command, timeouts_.query);
+            mark_reply();
             break;
         }
         catch (const drone::NoReply&)

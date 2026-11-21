@@ -198,6 +198,22 @@ std::chrono::steady_clock::duration DroneBase::command_idle_for() const
     return std::chrono::steady_clock::now() - last;
 }
 
+std::optional<std::chrono::steady_clock::duration> DroneBase::silent_for() const
+{
+    if (last_reply_.load() == 0)
+    {
+        return std::nullopt;
+    }
+    const auto last = std::chrono::steady_clock::time_point(
+        std::chrono::steady_clock::duration(last_reply_.load()));
+    return std::chrono::steady_clock::now() - last;
+}
+
+void DroneBase::mark_reply()
+{
+    last_reply_.store(std::chrono::steady_clock::now().time_since_epoch().count());
+}
+
 void DroneBase::mark_activity(bool command)
 {
     const auto now = std::chrono::steady_clock::now().time_since_epoch().count();
