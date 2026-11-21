@@ -11,10 +11,26 @@ SIM_PORT  ?= 8889
 
 all: build
 
-$(BUILD_DIR)/CMakeCache.txt:
-	$(CMAKE) -S . -B $(BUILD_DIR)
+# A build dir whose cache points to a cmake that is gone (a temporary venv, an upgrade) or to
+# another source tree (the repo moved) cannot rebuild itself: drop the cache and configure again.
+# $(1) = build dir, $(2) = extra configure flags.
+define configure
+	@cache=$(1)/CMakeCache.txt; \
+	if [ -f $$cache ]; then \
+	    tool=$$(sed -n 's/^CMAKE_COMMAND:INTERNAL=//p' $$cache); \
+	    src=$$(sed -n 's/^CMAKE_HOME_DIRECTORY:INTERNAL=//p' $$cache); \
+	    if [ ! -x "$$tool" ] || [ "$$src" != "$(CURDIR)" ]; then \
+	        echo "$(1): stale CMake cache (cmake '$$tool', source '$$src'), configuring again"; \
+	        rm -rf $$cache $(1)/CMakeFiles; \
+	    fi; \
+	fi; \
+	if [ ! -f $$cache ]; then \
+	    $(CMAKE) -S . -B $(1) $(2); \
+	fi
+endef
 
-build: $(BUILD_DIR)/CMakeCache.txt
+build:
+	$(call configure,$(BUILD_DIR))
 	$(CMAKE) --build $(BUILD_DIR) -j $(JOBS)
 
 test: build
@@ -40,6 +56,7 @@ clean:
 
 # .deb and .rpm with tello and tello-sim: a separate Release build without tests → $(PKG_DIR)/.
 package:
+	$(call configure,$(PKG_DIR))
 	$(CMAKE) -S . -B $(PKG_DIR) -DCMAKE_BUILD_TYPE=Release -DTELLO_BUILD_TESTS=OFF
 	$(CMAKE) --build $(PKG_DIR) -j $(JOBS)
 	cd $(PKG_DIR) && $(CPACK) -G "DEB;RPM"
