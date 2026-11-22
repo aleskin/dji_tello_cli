@@ -70,6 +70,7 @@ Startoptionen: `--host`, `--port`, `--state-port` (0 — ohne Telemetrie), `--vi
   „connection to the drone lost“, danach gilt sie als gelandet — `land`/`exit` warten nicht. Kommt sie zurück: „drone connected again“.
   Ist der Laptop nicht im WLAN der Drohne (kein Weg oder Adresse außerhalb ihres Netzes), warnt das Programm,
   schickt der Drohne nichts außer `connect`/`emergency` und versucht keine Landung — sie landet nach 15 s selbst.
+  Antwort `error Motor stop` (Absturz, blockierter Propeller, Überhitzung): die Drohne gilt als gelandet, die Figur endet ohne `land`.
 - Nicht abgedeckt: `kill -9`, leerer Laptop-Akku, WLAN-Verlust — dann landet die Tello nach 15 s
   ohne Befehle von selbst.
 - **`emergency`** schaltet die Motoren sofort und ohne Rückfrage ab — die Drohne fällt. Nur im Notfall.

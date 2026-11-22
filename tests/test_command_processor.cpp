@@ -283,12 +283,32 @@ TEST_F(ClassicCli, SquareInsideMission)
 
 TEST_F(ClassicCli, SquareFailureInShellLands)
 {
-    mock->reply("ok");               // takeoff
-    mock->reply("ok");               // forward
-    mock->reply("error Motor stop"); // cw 90
+    mock->reply("ok");    // takeoff
+    mock->reply("ok");    // forward
+    mock->reply("error"); // cw 90
     cli.execute_line("takeoff; square 100");
     EXPECT_EQ(mock->requests,
               (std::vector<std::string>{"takeoff", "forward 100", "cw 90", "land"}));
+}
+
+TEST_F(ClassicCli, MotorStopInAFigureMeansOnTheGroundNoLand)
+{
+    mock->reply("ok");               // takeoff
+    mock->reply("ok");               // forward
+    mock->reply("error Motor stop"); // cw 90: the drone fell
+    cli.execute_line("takeoff; square 100");
+    EXPECT_EQ(mock->requests, (std::vector<std::string>{"takeoff", "forward 100", "cw 90"}));
+    EXPECT_FALSE(cli.airborne());
+    EXPECT_NE(out.str().find("stopped its motors"), std::string::npos) << out.str();
+    EXPECT_TRUE(cli.land_before_exit());
+    EXPECT_EQ(mock->requests.size(), 3u);
+}
+
+TEST_F(ClassicCli, MotorStopOnTheGroundSaysNothingMore)
+{
+    mock->reply("error Motor stop");
+    cli.execute_line("battery");
+    EXPECT_EQ(out.str().find("stopped its motors"), std::string::npos);
 }
 
 TEST_F(ClassicCli, MissionsDoNotNest)

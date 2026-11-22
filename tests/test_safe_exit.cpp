@@ -146,7 +146,7 @@ TEST_F(SafeExitCli, FailedLandingKeepsTheShellThenExitAgainLeaves)
 {
     cli.execute_line("takeoff");
     EXPECT_FALSE(cli.execute_line("exit"));
-    mock->reply("error Motor stop");
+    mock->reply("error");
     EXPECT_FALSE(cli.land_before_exit());
     EXPECT_NE(out.str().find("landing failed"), std::string::npos);
     EXPECT_TRUE(cli.execute_line("battery")); // the shell goes on
@@ -159,7 +159,7 @@ TEST_F(SafeExitCli, ExitRightAfterFailedLandingLeavesAnyway)
 {
     cli.execute_line("takeoff");
     cli.execute_line("exit");
-    mock->reply("error Motor stop");
+    mock->reply("error");
     EXPECT_FALSE(cli.land_before_exit());
     EXPECT_FALSE(cli.execute_line("exit"));
     EXPECT_TRUE(cli.land_before_exit());

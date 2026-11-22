@@ -67,6 +67,7 @@ Opcije pokretanja: `--host`, `--port`, `--state-port` (0 — bez telemetrije), `
   i smatra ga sletelim: `land`/`exit` ne čekaju. Kad se vrati: „drone connected again“.
   Ako laptop nije na Wi-Fi-ju drona (nema rute ili adresa van njegove mreže), program upozorava, ne šalje mu ništa
   osim `connect`/`emergency` i ne pokušava sletanje — dron sam sleće posle 15 s.
+  Odgovor `error Motor stop` (udar, blokiran propeler, pregrevanje): dron se smatra prizemljenim, figura se završava bez `land`.
 - Nije pokriveno: `kill -9`, prazan laptop, gubitak Wi-Fi veze — tada Tello sam sleće posle 15 s
   bez komandi.
 - **`emergency`** odmah gasi motore, bez potvrde — dron pada. Samo za krajnju nuždu.

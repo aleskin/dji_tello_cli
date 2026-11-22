@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <charconv>
 #include <cmath>
 #include <ctime>
@@ -37,6 +38,19 @@ public:
 long long seconds(std::chrono::steady_clock::duration d)
 {
     return std::chrono::duration_cast<std::chrono::seconds>(d).count();
+}
+
+// Tello answers 'error Motor stop' when its motors are off: it crashed, a propeller is blocked
+// or it overheated. It is on the ground then, whatever the command was.
+bool motors_stopped(std::string_view message)
+{
+    std::string lower(message);
+    std::ranges::transform(lower, lower.begin(),
+                           [](unsigned char ch)
+                           {
+                               return static_cast<char>(std::tolower(ch));
+                           });
+    return lower.find("motor stop") != std::string::npos;
 }
 
 std::vector<std::string_view> split(std::string_view s, std::string_view separators)
@@ -987,6 +1001,17 @@ bool CommandProcessor::execute(std::string_view command)
         scope.fail(e.what());
         applog::error("cli", std::string(command) + ": " + e.what());
         out_ << "error: " << e.what() << '\n';
+        if (airborne_ && motors_stopped(e.what()))
+        {
+            airborne_ = false;
+            if (position_)
+            {
+                position_->on_land();
+            }
+            applog::warn("cli", "motors stopped: drone treated as on the ground");
+            out_ << "the drone stopped its motors (crash, blocked propeller or overheating): it "
+                    "is on the ground, check it before the next takeoff\n";
+        }
     }
     catch (const std::exception& e)
     {

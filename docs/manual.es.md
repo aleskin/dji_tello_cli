@@ -69,6 +69,7 @@ Opciones de inicio: `--host`, `--port`, `--state-port` (0 — sin telemetría), 
   «connection to the drone lost» y lo da por aterrizado: `land`/`exit` no esperan. Al volver: «drone connected again».
   Si el portátil no está en la Wi-Fi del dron (sin ruta o dirección fuera de su red), el programa avisa, no le envía
   nada salvo `connect`/`emergency` y no intenta aterrizar: el dron aterriza solo a los 15 s.
+  Respuesta `error Motor stop` (choque, hélice bloqueada, sobrecalentamiento): el dron cuenta como en tierra, la figura termina sin `land`.
 - No cubierto: `kill -9`, portátil sin batería, pérdida del Wi-Fi — entonces el Tello aterriza solo
   tras 15 s sin comandos.
 - **`emergency`** apaga los motores al instante, sin confirmación — el dron cae. Solo en caso extremo.

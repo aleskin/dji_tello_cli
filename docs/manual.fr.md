@@ -70,6 +70,7 @@ Options de lancement : `--host`, `--port`, `--state-port` (0 — sans télémét
   « connection to the drone lost » et le considère posé : `land`/`exit` n'attendent pas. À son retour : « drone connected again ».
   Si le portable n'est pas sur le Wi-Fi du drone (pas de route ou adresse hors de son réseau), le programme prévient,
   n'envoie rien sauf `connect`/`emergency` et ne tente pas d'atterrir : le drone se pose seul après 15 s.
+  Réponse `error Motor stop` (choc, hélice bloquée, surchauffe) : le drone est considéré posé, la figure s'arrête sans `land`.
 - Non couvert : `kill -9`, portable à plat, perte du Wi-Fi — le Tello atterrit alors seul après 15 s
   sans commande.
 - **`emergency`** coupe les moteurs immédiatement, sans confirmation — le drone tombe. Uniquement en dernier recours.
