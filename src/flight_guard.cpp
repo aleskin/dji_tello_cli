@@ -128,21 +128,21 @@ void FlightGuard::check_lost()
         return;
     }
     const auto silent = drone_.silent_for();
-    if (!silent)
-    {
-        lost_ = true;
-        say("no drone: it has not answered yet; switch it on and join its Wi-Fi, the program "
-            "connects by itself");
-        return;
-    }
-    if (*silent < settings_.lost_after)
+    if (silent && *silent < settings_.lost_after)
     {
         return;
     }
     lost_ = true;
-    say("connection to the drone lost: no answer for " + applog::ms(*silent) +
-        " (drone off, out of range or this PC left its Wi-Fi); a flying Tello lands by itself "
-        "15 s after the last command it got");
+    const auto route = drone_.link_problem();
+    const std::string why = route ? *route : "drone off, out of range or this PC left its Wi-Fi";
+    if (!silent)
+    {
+        say("no drone: it has not answered yet (" + why +
+            "); switch it on and join its Wi-Fi, the program connects by itself");
+        return;
+    }
+    say("connection to the drone lost: no answer for " + applog::ms(*silent) + " (" + why +
+        "); a flying Tello lands by itself 15 s after the last command it got");
 }
 
 void FlightGuard::check_battery()

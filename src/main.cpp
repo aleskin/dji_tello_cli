@@ -693,6 +693,11 @@ int run_session(int argc, char** argv, Options& opt)
     console << "tello " << tello::version() << " — " << drone->model() << " at " << opt.drone.host
             << ':' << opt.drone.port << ". 'help' lists commands.\n"
             << std::flush;
+    if (const auto problem = drone->link_problem())
+    {
+        applog::warn("main", "link check: " + *problem);
+        console << "warning: " << *problem << '\n' << std::flush;
+    }
     processor.execute_line("connect"); // SDK mode; on failure 'connect' can be retried
     const EmergencyTarget emergency(*drone, processor);
     int code = EXIT_FAILURE;

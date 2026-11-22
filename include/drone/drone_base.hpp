@@ -127,6 +127,13 @@ public:
     {
     }
 
+    // Why this PC cannot reach the drone right now (not on its Wi-Fi, no route), found without
+    // sending anything; nullopt: no problem known. Default: cannot tell.
+    [[nodiscard]] virtual std::optional<std::string> link_problem() const
+    {
+        return std::nullopt;
+    }
+
     // Time since the model last talked to the drone (zero before the first command);
     // FlightGuard sends keepalive() after a pause.
     [[nodiscard]] std::chrono::steady_clock::duration idle_for() const;

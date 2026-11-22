@@ -110,6 +110,11 @@ std::string UdpTransport::request(std::string_view command, std::chrono::millise
     }
 }
 
+std::optional<std::string> UdpTransport::route_problem() const
+{
+    return tello::route_problem(host_, port_);
+}
+
 void UdpTransport::send(std::string_view command)
 {
     const std::scoped_lock lock(mutex_);

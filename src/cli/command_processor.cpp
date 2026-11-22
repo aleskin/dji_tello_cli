@@ -755,7 +755,7 @@ std::chrono::steady_clock::duration CommandProcessor::stalled_for() const
 
 bool CommandProcessor::land_before_exit()
 {
-    if (!airborne_ || forget_lost_flight())
+    if (!airborne_ || forget_lost_flight() || unreachable_in_the_air("leaving"))
     {
         return true;
     }
@@ -890,6 +890,10 @@ void CommandProcessor::on_interrupt()
         applog::info("cli", "Ctrl+C on the ground");
         return;
     }
+    if (unreachable_in_the_air("Ctrl+C"))
+    {
+        return;
+    }
     applog::warn("cli", "Ctrl+C in flight: landing");
     out_ << "Ctrl+C in flight: landing (type 'exit' to quit once landed)\n";
     execute("land");
@@ -923,6 +927,21 @@ bool CommandProcessor::execute(std::string_view command)
     }
     applog::Scope scope("cli", "'" + std::string(command) + "'");
     forget_lost_flight();
+    if (needs_link(entry->info, args))
+    {
+        if (const auto problem = off_network())
+        {
+            scope.fail("off the drone's network");
+            applog::warn("cli", "'" + std::string(name) + "' not sent: " + *problem);
+            out_ << "'" << name << "' not sent: " << *problem << '\n';
+            if (airborne_)
+            {
+                out_ << "the drone gets no commands from here: it lands by itself 15 s after the "
+                        "last one it got\n";
+            }
+            return false;
+        }
+    }
     const bool record = recordable(entry->info, args);
     const bool was_airborne = airborne_;
     std::optional<drone::Position> before;
@@ -1533,6 +1552,53 @@ bool CommandProcessor::forget_lost_flight()
                             "treated as landed");
     out_ << "no answer from the drone for " << seconds(*silent)
          << " s: it has landed by itself or is off; treated as on the ground\n";
+    return true;
+}
+
+// Why the drone cannot be reached from this PC, when that is known (wrong network, no route) and
+// the drone has not answered for off_network_after_ (or never did). A drone that answered
+// recently is reachable whatever the routing table says.
+std::optional<std::string> CommandProcessor::off_network() const
+{
+    auto problem = drone_.link_problem();
+    if (!problem)
+    {
+        return std::nullopt;
+    }
+    if (const auto silent = drone_.silent_for(); silent && *silent < off_network_after_)
+    {
+        return std::nullopt;
+    }
+    return problem;
+}
+
+// Commands that talk to the drone; 'connect' is always allowed (it is how to try again),
+// 'emergency' too (it costs nothing), and so are dry runs and the commands that only manage
+// missions or recordings (each mission line is checked on its own).
+bool CommandProcessor::needs_link(const CommandInfo& info, const Args& args)
+{
+    if (info.name == "connect" || info.name == "emergency" || info.name == "record" ||
+        info.name == "mission" || std::ranges::find(args, "dry") != args.end())
+    {
+        return false;
+    }
+    return info.needs.has_value() || info.category == Category::Flight ||
+           info.category == Category::Movement || info.category == Category::Mission;
+}
+
+// In the air while this PC is off the drone's network: landing cannot reach it. Says why and
+// that the drone lands by itself; true then (nothing to do here).
+bool CommandProcessor::unreachable_in_the_air(std::string_view what)
+{
+    const auto problem = off_network();
+    if (!problem)
+    {
+        return false;
+    }
+    applog::warn("cli", std::string(what) + " in the air, landing not tried: " + *problem);
+    out_ << "cannot land: " << *problem
+         << "; the drone gets no commands from here and lands by itself 15 s after the last one "
+            "it got\n";
     return true;
 }
 

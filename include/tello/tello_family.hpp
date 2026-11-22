@@ -82,7 +82,8 @@ public:
     [[nodiscard]] std::string tof_distance() override; // "100mm"
 
     void land_now() noexcept override; // "rc 0 0 0 0", then "land" three times, 100 ms apart
-    void keepalive() override;         // "command": harmless in SDK mode, resets the 15 s timer
+    [[nodiscard]] std::optional<std::string> link_problem() const override; // from the transport
+    void keepalive() override; // "command": harmless in SDK mode, resets the 15 s timer
 
     void start_video() override; // "streamon"
     void stop_video() override;  // "streamoff"

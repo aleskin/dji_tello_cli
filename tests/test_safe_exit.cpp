@@ -302,6 +302,56 @@ TEST_F(SilentDroneCli, AnswerAgainKeepsItFlying)
     EXPECT_TRUE(cli.airborne());
 }
 
+// --- This PC off the drone's Wi-Fi (TEL-00066): nothing is sent, landing is not tried. ---
+
+class OffNetworkCli : public SafeExitCli
+{
+protected:
+    void SetUp() override
+    {
+        cli.set_off_network_after(milliseconds(30));
+        cli.execute_line("takeoff");
+        ASSERT_TRUE(cli.airborne());
+        mock->route = "this PC is on 192.168.1.5, not on the drone's network 192.168.10.x";
+    }
+};
+
+TEST_F(OffNetworkCli, CommandsAreNotSentAfterTheDroneWentQuiet)
+{
+    std::this_thread::sleep_for(milliseconds(50));
+    cli.execute_line("up 50");
+    EXPECT_EQ(count(mock->requests, "up 50"), 0u);
+    EXPECT_NE(out.str().find("'up' not sent: this PC is on 192.168.1.5"), std::string::npos);
+    EXPECT_NE(out.str().find("lands by itself"), std::string::npos);
+}
+
+TEST_F(OffNetworkCli, ExitAndCtrlCDoNotTryToLand)
+{
+    std::this_thread::sleep_for(milliseconds(50));
+    cli.on_interrupt();
+    EXPECT_FALSE(cli.execute_line("exit"));
+    EXPECT_TRUE(cli.land_before_exit());
+    EXPECT_EQ(count(mock->requests, "land"), 0u);
+    EXPECT_NE(out.str().find("cannot land: this PC is on"), std::string::npos);
+}
+
+TEST_F(OffNetworkCli, ConnectIsStillAllowed)
+{
+    std::this_thread::sleep_for(milliseconds(50));
+    cli.execute_line("connect");
+    EXPECT_EQ(count(mock->requests, "command"), 1u);
+    cli.execute_line("up 50"); // it answered: reachable after all
+    EXPECT_EQ(count(mock->requests, "up 50"), 1u);
+}
+
+TEST_F(OffNetworkCli, ADroneThatAnsweredRecentlyIsReachable)
+{
+    cli.execute_line("up 50");
+    EXPECT_EQ(count(mock->requests, "up 50"), 1u);
+    EXPECT_TRUE(cli.land_before_exit());
+    EXPECT_EQ(count(mock->requests, "land"), 1u);
+}
+
 // --- Hang watchdog in FlightGuard. ---
 
 struct Messages

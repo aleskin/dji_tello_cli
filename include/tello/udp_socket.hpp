@@ -49,7 +49,14 @@ public:
     [[nodiscard]] std::optional<Datagram> receive(std::chrono::milliseconds timeout) const;
 
 private:
+    friend std::optional<std::string> route_problem(const std::string& host, std::uint16_t port);
     int fd_ = -1;
 };
+
+// Asks the kernel which local address a datagram to host would leave from (connect on a UDP
+// socket, nothing is sent). nullopt: host is reachable on its own network, or loopback.
+// Otherwise why this PC cannot be on the host's Wi-Fi: no route, or a local address outside the
+// host's /24.
+[[nodiscard]] std::optional<std::string> route_problem(const std::string& host, std::uint16_t port);
 
 } // namespace tello

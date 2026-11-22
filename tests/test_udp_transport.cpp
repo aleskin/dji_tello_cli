@@ -86,5 +86,22 @@ TEST(UdpTransport, LateReplyAfterTheNextSendIsTakenForIt)
     responder.join();
 }
 
+// TEL-00066: the route check asks the kernel only (connect on UDP sends nothing).
+TEST(RouteProblem, LoopbackIsAlwaysFine)
+{
+    EXPECT_FALSE(route_problem("127.0.0.1", 8889));
+    EXPECT_FALSE(UdpTransport("127.0.0.1", 8889).route_problem());
+}
+
+TEST(RouteProblem, AddressOffEveryLocalNetworkIsReported)
+{
+    // TEST-NET-1 (RFC 5737): no PC sits on it, so either no route or a foreign local address.
+    const auto problem = route_problem("192.0.2.1", 8889);
+    ASSERT_TRUE(problem);
+    EXPECT_TRUE(problem->find("no route") != std::string::npos ||
+                problem->find("not on the drone's network 192.0.2.x") != std::string::npos)
+        << *problem;
+}
+
 } // namespace
 } // namespace tello

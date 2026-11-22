@@ -50,6 +50,11 @@ public:
         sent_now.emplace_back(command);
     }
 
+    [[nodiscard]] std::optional<std::string> route_problem() const override
+    {
+        return route;
+    }
+
     void reply(std::optional<std::string> r)
     {
         replies.push_back(std::move(r));
@@ -60,6 +65,7 @@ public:
     std::vector<std::string> sent_now; // send_now(): crash-handler sends
     std::deque<std::optional<std::string>> replies;
     std::chrono::milliseconds last_timeout{0};
+    std::optional<std::string> route; // route_problem(): this PC is off the drone's network
     std::function<void(std::string_view)> on_request; // runs inside request(), before the reply
 };
 

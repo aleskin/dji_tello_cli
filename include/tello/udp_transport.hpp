@@ -24,6 +24,7 @@ public:
     std::string request(std::string_view command, std::chrono::milliseconds timeout) override;
     void send(std::string_view command) override;
     void send_now(std::string_view command) noexcept override;
+    [[nodiscard]] std::optional<std::string> route_problem() const override;
 
 private:
     std::string host_;

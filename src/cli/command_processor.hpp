@@ -118,6 +118,10 @@ constexpr int kLandedHeightCm = 30;
 // A Tello that hears nothing for 15 s lands by itself, so a "flying" drone counts as landed.
 constexpr std::chrono::milliseconds kDroneLostAfter{15'000};
 
+// This PC is off the drone's network (no route, address outside its /24) and the drone has not
+// answered for this long: commands for it are not sent, landing is not tried.
+constexpr std::chrono::milliseconds kOffNetworkAfter{3'000};
+
 // Interactive command layer. Knows only DroneBase: which model sits behind it decides what works.
 class CommandProcessor
 {
@@ -180,6 +184,12 @@ public:
     void set_drone_lost_after(std::chrono::milliseconds after)
     {
         lost_after_ = after;
+    }
+
+    // Tests shorten kOffNetworkAfter.
+    void set_off_network_after(std::chrono::milliseconds after)
+    {
+        off_network_after_ = after;
     }
 
     // Caller validates the range (10..100), see "kbspeed".
@@ -252,6 +262,9 @@ private:
     void confirm_landed();
     [[nodiscard]] std::optional<std::chrono::steady_clock::duration> drone_silence() const;
     bool forget_lost_flight();
+    [[nodiscard]] std::optional<std::string> off_network() const;
+    [[nodiscard]] static bool needs_link(const CommandInfo& info, const Args& args);
+    bool unreachable_in_the_air(std::string_view what);
     void joystick_mode();
     void open_manual_window(std::string_view mode);
     void feed_motion(std::optional<std::chrono::steady_clock::time_point>& last);
@@ -275,6 +288,7 @@ private:
     Sleep sleep_;
     Interrupted interrupted_;
     std::chrono::milliseconds lost_after_ = kDroneLostAfter;
+    std::chrono::milliseconds off_network_after_ = kOffNetworkAfter;
     std::vector<Entry> entries_;
     std::vector<CommandInfo> commands_;
     bool exit_requested_ = false;

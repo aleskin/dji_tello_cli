@@ -136,6 +136,25 @@ TEST(FlightGuardTest, LostLinkSaidOnceThenConnectedAgain)
     EXPECT_EQ(messages.count_containing("answers again"), 0u);
 }
 
+TEST(FlightGuardTest, LostLinkNamesTheWrongNetwork)
+{
+    auto mock = std::make_shared<MockTransport>();
+    mock->route = "this PC is on 192.168.1.5, not on the drone's network 192.168.10.x";
+    tello::TelloClassic drone(mock, tello::DroneTimeouts{milliseconds(10), milliseconds(10)});
+    mock->reply(std::nullopt);
+    EXPECT_THROW(drone.connect(), drone::NoReply);
+    for (int i = 0; i < 40; ++i)
+    {
+        mock->reply(std::nullopt);
+    }
+    Messages messages;
+    {
+        drone::FlightGuard guard(drone, fast(), {}, messages.sink());
+        std::this_thread::sleep_for(milliseconds(200));
+    }
+    EXPECT_EQ(messages.count_containing("not on the drone's network"), 1u);
+}
+
 TEST(FlightGuardTest, DroneSwitchedOnLaterConnectsByItself)
 {
     auto mock = std::make_shared<MockTransport>();

@@ -153,4 +153,37 @@ std::optional<Datagram> UdpSocket::receive(std::chrono::milliseconds timeout) co
                     ntohs(from.sin_port)};
 }
 
+std::optional<std::string> route_problem(const std::string& host, std::uint16_t port)
+{
+    const sockaddr_in peer = make_addr(host, port);
+    const std::uint32_t target = ntohl(peer.sin_addr.s_addr);
+    if ((target >> 24U) == 127U)
+    {
+        return std::nullopt; // the simulator on this PC
+    }
+    UdpSocket probe;
+    if (::connect(probe.fd_, reinterpret_cast<const sockaddr*>(&peer), sizeof(peer)) < 0)
+    {
+        return "no route to " + host + " (" + std::strerror(errno) +
+               "): this PC is not on the drone's Wi-Fi";
+    }
+    sockaddr_in local{};
+    socklen_t len = sizeof(local);
+    if (::getsockname(probe.fd_, reinterpret_cast<sockaddr*>(&local), &len) < 0)
+    {
+        return std::nullopt; // cannot tell: assume fine
+    }
+    const std::uint32_t mine = ntohl(local.sin_addr.s_addr);
+    constexpr std::uint32_t kNet24 = 0xFFFFFF00U;
+    if ((mine & kNet24) == (target & kNet24))
+    {
+        return std::nullopt;
+    }
+    std::array<char, INET_ADDRSTRLEN> text{};
+    ::inet_ntop(AF_INET, &local.sin_addr, text.data(), text.size());
+    const std::string net = host.substr(0, host.rfind('.'));
+    return "this PC is on " + std::string(text.data()) + ", not on the drone's network " + net +
+           ".x: join the drone's Wi-Fi (TELLO-...)";
+}
+
 } // namespace tello

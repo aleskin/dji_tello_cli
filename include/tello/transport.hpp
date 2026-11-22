@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -28,6 +29,13 @@ public:
     // Default: not possible.
     virtual void send_now(std::string_view /*command*/) noexcept
     {
+    }
+
+    // Why the drone cannot be reached from this PC (wrong network, no route), checked without
+    // sending anything; nullopt: no problem known. Default: cannot tell.
+    [[nodiscard]] virtual std::optional<std::string> route_problem() const
+    {
+        return std::nullopt;
     }
 };
 

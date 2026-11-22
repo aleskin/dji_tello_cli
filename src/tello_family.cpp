@@ -226,6 +226,11 @@ void TelloFamily::stop_video()
     expect_ok("streamoff");
 }
 
+std::optional<std::string> TelloFamily::link_problem() const
+{
+    return transport_->route_problem();
+}
+
 std::string TelloFamily::video_source() const
 {
     return "udp://0.0.0.0:" + std::to_string(video_port_);

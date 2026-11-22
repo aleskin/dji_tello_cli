@@ -115,6 +115,11 @@ metre flown; `return` flies straight legs back by this estimate, it is not a GPS
   drone then counts as landed (the Tello lands itself after 15 s without commands), so `land`,
   `exit` and Ctrl+C do not wait for a reply. Keepalive keeps trying: when the drone answers,
   "drone connected again" — SDK mode is back without `connect`.
+- **Wrong Wi-Fi**: the program asks the kernel (nothing is sent) which address a packet to the
+  drone would leave from. No route, or an address outside the drone's `/24` (the laptop joined
+  another network), is shown as a warning at start and in the lost-link message; once the drone
+  has been quiet for 3 s, commands for it are not sent (`connect` and `emergency` still are) and
+  `land`/`exit`/Ctrl+C do not try to land — the drone lands itself 15 s after the last command.
 - **Hang watchdog**: a command stuck for 45 s without talking to the drone (outside planned
   pauses) stops the keepalive and lands the drone.
 - Not covered: `kill -9`, a dead laptop, lost Wi-Fi — then the Tello's own auto-landing after 15 s
