@@ -26,11 +26,15 @@ struct GuardSettings
     // No answer from the drone this long while keepalive goes out: the link is lost (drone off,
     // out of range, this PC left its Wi-Fi). Tello lands by itself after 15 s without commands.
     std::chrono::milliseconds lost_after{15'000};
+    // Highest drone temperature (C) for an overheating warning; again after cooling by temp_rearm.
+    int warn_temp = 85;
+    int temp_rearm = 5;
 };
 
 // Background safety for a connected drone, working through DroneBase only:
-// keepalive when the user is quiet, a warning and then a landing on low battery, and a landing
-// when the program hangs (keepalive would otherwise hold a stuck program's drone in the air).
+// keepalive when the user is quiet, a warning and then a landing on low battery, a landing
+// when the program hangs (keepalive would otherwise hold a stuck program's drone in the air),
+// and a warning when the drone overheats.
 class FlightGuard
 {
 public:
@@ -38,9 +42,10 @@ public:
     using Notify = std::function<void(const std::string&)>;    // called from the guard thread
     // How long the program's current command has been stuck; zero: not stuck (or unknown).
     using StallProbe = std::function<std::chrono::steady_clock::duration()>;
+    using TemperatureSource = std::function<std::optional<int>()>; // C; nullopt = unknown now
 
     FlightGuard(DroneBase& drone, GuardSettings settings, BatterySource battery, Notify notify,
-                StallProbe stalled = {});
+                StallProbe stalled = {}, TemperatureSource temperature = {});
     ~FlightGuard();
 
     FlightGuard(const FlightGuard&) = delete;
@@ -54,6 +59,7 @@ private:
     void check_keepalive();
     void check_lost(); // after a failed keepalive: says once that the drone is gone
     void check_battery();
+    void check_temperature();
     void say(const std::string& message) const;
 
     DroneBase& drone_;
@@ -61,7 +67,9 @@ private:
     BatterySource battery_;
     Notify notify_;
     StallProbe stalled_;
+    TemperatureSource temperature_;
     bool stuck_ = false;
+    bool hot_ = false; // overheating said; again once it cooled down
     bool keepalive_supported_ = true;
     bool keepalive_failing_ = false;
     bool lost_ = false; // "connection lost" said; "connected again" once keepalive gets through

@@ -466,6 +466,20 @@ std::optional<int> telemetry_battery(const tello::StateListener* telemetry)
     return snap->state.bat;
 }
 
+// Highest drone temperature from fresh telemetry, for the overheating warning.
+drone::FlightGuard::TemperatureSource telemetry_temperature(const tello::StateListener* telemetry)
+{
+    return [telemetry]() -> std::optional<int>
+    {
+        const auto snap = telemetry ? telemetry->latest() : std::nullopt;
+        if (!snap || std::chrono::steady_clock::now() - snap->received > std::chrono::seconds(2))
+        {
+            return std::nullopt;
+        }
+        return snap->state.temph;
+    };
+}
+
 drone::FlightGuard::StallProbe stall_probe(const cli::CommandProcessor& processor)
 {
     return [&processor]
@@ -497,7 +511,7 @@ int run_mission_file(drone::DroneBase& drone, cli::CommandProcessor& processor,
             const std::scoped_lock lock(out_mutex);
             std::cout << "! " << m << '\n' << std::flush;
         },
-        stall_probe(processor));
+        stall_probe(processor), telemetry_temperature(telemetry));
     g_interrupted.store(false);
     const bool ok = processor.run_mission(file, path);
     if (g_interrupted.exchange(false))
@@ -530,7 +544,7 @@ int run(drone::DroneBase& drone, cli::CommandProcessor& processor,
                 const std::scoped_lock lock(out_mutex);
                 std::cout << "! " << m << '\n' << std::flush;
             },
-            stall_probe(processor));
+            stall_probe(processor), telemetry_temperature(telemetry));
         std::string line;
         while (std::getline(std::cin, line))
         {
@@ -561,7 +575,7 @@ int run(drone::DroneBase& drone, cli::CommandProcessor& processor,
         {
             rx.print("! %s\n", m.c_str());
         },
-        stall_probe(processor));
+        stall_probe(processor), telemetry_temperature(telemetry));
     rx.set_max_history_size(1000);
     rx.set_completion_callback(
         [&processor](const std::string& input, int& context_len)

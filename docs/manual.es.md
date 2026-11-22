@@ -70,6 +70,7 @@ Opciones de inicio: `--host`, `--port`, `--state-port` (0 — sin telemetría), 
   Si el portátil no está en la Wi-Fi del dron (sin ruta o dirección fuera de su red), el programa avisa, no le envía
   nada salvo `connect`/`emergency` y no intenta aterrizar: el dron aterriza solo a los 15 s.
   Respuesta `error Motor stop` (choque, hélice bloqueada, sobrecalentamiento): el dron cuenta como en tierra, la figura termina sin `land`.
+  Desde 85 °C (telemetría `temph`) el programa avisa «drone overheating»: aterrizar, dejar enfriar, apagar entre vuelos.
 - No cubierto: `kill -9`, portátil sin batería, pérdida del Wi-Fi — entonces el Tello aterriza solo
   tras 15 s sin comandos.
 - **`emergency`** apaga los motores al instante, sin confirmación — el dron cae. Solo en caso extremo.

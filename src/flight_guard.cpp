@@ -10,12 +10,13 @@ namespace drone
 {
 
 FlightGuard::FlightGuard(DroneBase& drone, GuardSettings settings, BatterySource battery,
-                         Notify notify, StallProbe stalled)
+                         Notify notify, StallProbe stalled, TemperatureSource temperature)
     : drone_(drone)
     , settings_(settings)
     , battery_(std::move(battery))
     , notify_(std::move(notify))
     , stalled_(std::move(stalled))
+    , temperature_(std::move(temperature))
     , thread_(
           [this](const std::stop_token& stop)
           {
@@ -49,7 +50,30 @@ void FlightGuard::run(const std::stop_token& stop)
             check_keepalive();
         }
         check_battery();
+        check_temperature();
     }
+}
+
+void FlightGuard::check_temperature()
+{
+    const auto temp = temperature_ ? temperature_() : std::nullopt;
+    if (!temp)
+    {
+        return;
+    }
+    if (hot_ && *temp < settings_.warn_temp - settings_.temp_rearm)
+    {
+        applog::info("guard", "drone cooled down to " + std::to_string(*temp) + " C");
+        hot_ = false;
+        return;
+    }
+    if (hot_ || *temp < settings_.warn_temp)
+    {
+        return;
+    }
+    hot_ = true;
+    say("drone overheating: " + std::to_string(*temp) +
+        " C; land and let it cool, switch it off between flights (a hot Tello stops its motors)");
 }
 
 bool FlightGuard::check_stall()

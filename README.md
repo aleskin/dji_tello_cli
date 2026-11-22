@@ -122,6 +122,9 @@ metre flown; `return` flies straight legs back by this estimate, it is not a GPS
   `land`/`exit`/Ctrl+C do not try to land — the drone lands itself 15 s after the last command.
 - **Motor stop**: the reply `error Motor stop` (crash, blocked propeller, overheating) means the
   motors are off: the drone counts as on the ground, and a figure or mission stops without `land`.
+- **Overheating**: telemetry `temph` at 85 °C or more prints "drone overheating" once (again
+  after it cools by 5 °C). A Tello left switched on on the ground heats up and may stop its
+  motors in the next flight: switch it off between flights.
 - **Hang watchdog**: a command stuck for 45 s without talking to the drone (outside planned
   pauses) stops the keepalive and lands the drone.
 - Not covered: `kill -9`, a dead laptop, lost Wi-Fi — then the Tello's own auto-landing after 15 s

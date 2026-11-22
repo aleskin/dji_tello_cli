@@ -14,6 +14,7 @@
 #include <chrono>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <thread>
 #include <vector>
 
@@ -170,6 +171,36 @@ TEST(FlightGuardTest, DroneSwitchedOnLaterConnectsByItself)
     EXPECT_EQ(messages.count_containing("no drone"), 1u);
     EXPECT_EQ(messages.count_containing("drone connected again"), 1u);
     EXPECT_TRUE(drone.silent_for());
+}
+
+TEST(FlightGuardTest, OverheatingWarnsOnceUntilItCools)
+{
+    auto mock = std::make_shared<MockTransport>();
+    tello::TelloClassic drone(mock);
+    drone.connect();
+    std::atomic<int> temp{80};
+    Messages messages;
+    {
+        drone::FlightGuard guard(drone, fast(), {}, messages.sink(), {},
+                                 [&temp]
+                                 {
+                                     return std::optional<int>(temp.load());
+                                 });
+        std::this_thread::sleep_for(milliseconds(60));
+        temp.store(88);
+        std::this_thread::sleep_for(milliseconds(80));
+        temp.store(83); // cooler, but not by 5 C: no new warning
+        std::this_thread::sleep_for(milliseconds(60));
+        temp.store(86);
+        std::this_thread::sleep_for(milliseconds(60));
+        temp.store(78); // cooled down: re-armed
+        std::this_thread::sleep_for(milliseconds(60));
+        temp.store(90);
+        std::this_thread::sleep_for(milliseconds(80));
+    }
+    EXPECT_EQ(messages.count_containing("drone overheating"), 2u);
+    EXPECT_EQ(messages.count_containing("88 C"), 1u);
+    EXPECT_EQ(messages.count_containing("90 C"), 1u);
 }
 
 TEST(FlightGuardTest, LowBatteryWarnsThenLandsOnce)
