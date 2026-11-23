@@ -326,17 +326,24 @@ TEST_F(ClassicCli, MissionsDoNotNest)
 class LandTelemetryCli : public ::testing::Test
 {
 protected:
-    // Sends "h:<height>;" telemetry to the listener every 20 ms until the test ends.
-    void send_height(int height)
+    // Sends "h:<height>;time:<motors>;" telemetry to the listener every 20 ms until the test
+    // ends. The motors-on time runs while `motors` is set and stands still otherwise.
+    void send_height(int height, bool motors = true)
     {
         sender = std::jthread(
-            [this, height](const std::stop_token& stop)
+            [this, height, motors](const std::stop_token& stop)
             {
                 const tello::UdpSocket socket("127.0.0.1", 0);
+                int time = 0;
                 while (!stop.stop_requested())
                 {
-                    socket.send_to("h:" + std::to_string(height) + ";", "127.0.0.1",
-                                   listener.local_port());
+                    if (motors)
+                    {
+                        ++time;
+                    }
+                    socket.send_to("h:" + std::to_string(height) + ";time:" + std::to_string(time) +
+                                       ";",
+                                   "127.0.0.1", listener.local_port());
                     std::this_thread::sleep_for(std::chrono::milliseconds(20));
                 }
             });
@@ -374,6 +381,61 @@ TEST_F(LandTelemetryCli, OkWithTheDroneStillUpIsNotALanding)
     send_height(0);
     EXPECT_TRUE(cli.land_before_exit()); // still in the air: lands again
     EXPECT_EQ(mock->requests, (std::vector<std::string>{"takeoff", "land", "land"}));
+}
+
+TEST_F(LandTelemetryCli, DroneThatLandedByItselfIsOnTheGround)
+{
+    cli.set_motors_idle_after(std::chrono::milliseconds(200));
+    send_height(100);
+    EXPECT_TRUE(cli.execute_line("takeoff"));
+    send_height(0, false);
+    std::this_thread::sleep_for(std::chrono::milliseconds(400));
+    cli.execute_line("land");
+    EXPECT_FALSE(cli.airborne());
+    EXPECT_NE(out.str().find("landed by itself"), std::string::npos) << out.str();
+    EXPECT_EQ(mock->requests, (std::vector<std::string>{"takeoff"}));
+}
+
+TEST_F(LandTelemetryCli, LowButRunningMotorsStayInTheAir)
+{
+    cli.set_motors_idle_after(std::chrono::milliseconds(200));
+    send_height(20);
+    EXPECT_TRUE(cli.execute_line("takeoff"));
+    std::this_thread::sleep_for(std::chrono::milliseconds(400));
+    EXPECT_TRUE(cli.execute_line("forward 50"));
+    EXPECT_TRUE(cli.airborne());
+}
+
+TEST_F(LandTelemetryCli, NoValidImuAndTheDroneDown)
+{
+    send_height(0);
+    mock->reply("ok");
+    mock->reply("error No valid imu");
+    cli.execute_line("takeoff; forward 100");
+    EXPECT_NE(out.str().find("IMU"), std::string::npos) << out.str();
+    EXPECT_NE(out.str().find("already down"), std::string::npos) << out.str();
+    EXPECT_FALSE(cli.airborne());
+    EXPECT_TRUE(cli.land_before_exit());
+    EXPECT_EQ(mock->requests, (std::vector<std::string>{"takeoff", "forward 100"}));
+}
+
+TEST_F(LandTelemetryCli, LandErrorWithTheDroneDown)
+{
+    send_height(0);
+    mock->reply("ok");
+    mock->reply("error");
+    cli.execute_line("takeoff; land");
+    EXPECT_NE(out.str().find("already down"), std::string::npos) << out.str();
+    EXPECT_FALSE(cli.airborne());
+}
+
+TEST_F(LandTelemetryCli, ErrorInTheAirKeepsTheDroneUp)
+{
+    send_height(120);
+    mock->reply("ok");
+    mock->reply("error No valid imu");
+    cli.execute_line("takeoff; forward 100");
+    EXPECT_TRUE(cli.airborne());
 }
 
 TEST_F(LandTelemetryCli, WithoutFreshTelemetryTheReplyStands)

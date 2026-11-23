@@ -18,6 +18,8 @@ struct StateSnapshot
 {
     DroneState state;
     std::chrono::steady_clock::time_point received;
+    // When the motors-on time (state.time) last changed: it stands still while the motors are off.
+    std::chrono::steady_clock::time_point motors_changed;
 };
 
 // Receives telemetry in a background thread and keeps the latest valid packet.

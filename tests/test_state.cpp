@@ -114,5 +114,38 @@ TEST(StateListenerTest, KeepsLatestValidPacket)
     EXPECT_EQ(second->state.h, 30);
 }
 
+TEST(StateListenerTest, RemembersWhenTheMotorsTimeLastChanged)
+{
+    StateListener listener("127.0.0.1", 0);
+    UdpSocket drone("127.0.0.1", 0);
+    drone.send_to("time:5;bat:1;", "127.0.0.1", listener.local_port());
+    const auto first = wait_for(listener,
+                                [](const DroneState& s)
+                                {
+                                    return s.bat == 1;
+                                });
+    ASSERT_TRUE(first.has_value());
+    EXPECT_EQ(first->motors_changed, first->received);
+
+    drone.send_to("time:5;bat:2;", "127.0.0.1", listener.local_port());
+    const auto same = wait_for(listener,
+                               [](const DroneState& s)
+                               {
+                                   return s.bat == 2;
+                               });
+    ASSERT_TRUE(same.has_value());
+    EXPECT_EQ(same->motors_changed, first->received);
+    EXPECT_GT(same->received, first->received);
+
+    drone.send_to("time:6;bat:3;", "127.0.0.1", listener.local_port());
+    const auto moved = wait_for(listener,
+                                [](const DroneState& s)
+                                {
+                                    return s.bat == 3;
+                                });
+    ASSERT_TRUE(moved.has_value());
+    EXPECT_EQ(moved->motors_changed, moved->received);
+}
+
 } // namespace
 } // namespace tello

@@ -53,6 +53,19 @@ bool motors_stopped(std::string_view message)
     return lower.find("motor stop") != std::string::npos;
 }
 
+// Tello answers 'error No valid imu' when its inertial sensors fail (overheating, a calibration
+// gone wrong): it cannot hold itself in the air and lands or drops within a second.
+bool imu_lost(std::string_view message)
+{
+    std::string lower(message);
+    std::ranges::transform(lower, lower.begin(),
+                           [](unsigned char ch)
+                           {
+                               return static_cast<char>(std::tolower(ch));
+                           });
+    return lower.find("no valid imu") != std::string::npos;
+}
+
 std::vector<std::string_view> split(std::string_view s, std::string_view separators)
 {
     std::vector<std::string_view> out;
@@ -328,6 +341,12 @@ void CommandProcessor::register_commands()
                 applog::warn("cli", "land not sent: drone silent for " + applog::ms(*silent));
                 out_ << "land not sent: no answer from the drone for " << seconds(*silent)
                      << " s\n";
+                return;
+            }
+            if (resting_on_the_ground())
+            {
+                applog::warn("cli", "land not sent: telemetry shows the drone on the ground");
+                out_ << "land not sent: the drone is on the ground\n";
                 return;
             }
             drone_.land();
@@ -1012,6 +1031,10 @@ bool CommandProcessor::execute(std::string_view command)
             out_ << "the drone stopped its motors (crash, blocked propeller or overheating): it "
                     "is on the ground, check it before the next takeoff\n";
         }
+        else if (airborne_)
+        {
+            down_after_error(entry->info.name, e.what());
+        }
     }
     catch (const std::exception& e)
     {
@@ -1562,6 +1585,10 @@ bool CommandProcessor::forget_lost_flight()
     {
         return false;
     }
+    if (forget_self_landing())
+    {
+        return true;
+    }
     const auto silent = drone_silence();
     if (!silent)
     {
@@ -1578,6 +1605,92 @@ bool CommandProcessor::forget_lost_flight()
     out_ << "no answer from the drone for " << seconds(*silent)
          << " s: it has landed by itself or is off; treated as on the ground\n";
     return true;
+}
+
+// Fresh telemetry shows the drone low with its motors off (their running time stands still).
+std::optional<tello::StateSnapshot> CommandProcessor::resting_on_the_ground() const
+{
+    auto snap = telemetry_ ? telemetry_->latest() : std::nullopt;
+    if (!snap)
+    {
+        return std::nullopt;
+    }
+    const auto now = std::chrono::steady_clock::now();
+    if (now - snap->received > kLandConfirmWait || snap->state.h > kLandedHeightCm ||
+        now - snap->motors_changed < motors_idle_after_)
+    {
+        return std::nullopt;
+    }
+    return snap;
+}
+
+// The drone is taken for flying, but fresh telemetry shows it on the ground with the motors off
+// (their running time stands still): it has landed or dropped by itself.
+bool CommandProcessor::forget_self_landing()
+{
+    if (!airborne_)
+    {
+        return false;
+    }
+    const auto snap = resting_on_the_ground();
+    if (!snap)
+    {
+        return false;
+    }
+    const auto now = std::chrono::steady_clock::now();
+    airborne_ = false;
+    if (position_)
+    {
+        position_->on_land();
+    }
+    applog::warn("cli", "telemetry shows h=" + std::to_string(snap->state.h) +
+                            " cm and the motors idle for " +
+                            applog::ms(now - snap->motors_changed) + ": treated as landed");
+    out_ << "the drone is on the ground (telemetry: h=" << snap->state.h
+         << " cm, motors off): it has landed by itself; treated as on the ground\n";
+    return true;
+}
+
+// 'land' or a move failed in the air. 'No valid imu' is explained. After 'land' or an IMU fault
+// the drone may be down already: fresh telemetry within kLandConfirmWait showing the ground
+// decides, so the CLI does not keep a fallen drone "in the air".
+bool CommandProcessor::down_after_error(std::string_view command, std::string_view message)
+{
+    const bool imu = imu_lost(message);
+    if (imu)
+    {
+        applog::warn("cli", "drone reports no valid IMU");
+        out_ << "the drone lost its motion sensors (IMU): it overheated or needs an IMU "
+                "calibration in the Tello app; it lands by itself, let it cool down\n";
+    }
+    if ((!imu && command != "land") || telemetry_ == nullptr)
+    {
+        return false;
+    }
+    const auto failed = std::chrono::steady_clock::now();
+    const auto until = failed + kLandConfirmWait;
+    for (;;)
+    {
+        const auto snap = telemetry_->latest();
+        if (snap && snap->received >= failed && snap->state.h <= kLandedHeightCm)
+        {
+            airborne_ = false;
+            if (position_)
+            {
+                position_->on_land();
+            }
+            applog::warn("cli", "after the error telemetry shows h=" +
+                                    std::to_string(snap->state.h) + " cm: treated as landed");
+            out_ << "the drone is already down (telemetry: h=" << snap->state.h
+                 << " cm): treated as on the ground\n";
+            return true;
+        }
+        if (std::chrono::steady_clock::now() >= until)
+        {
+            return false;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
 }
 
 // Why the drone cannot be reached from this PC, when that is known (wrong network, no route) and

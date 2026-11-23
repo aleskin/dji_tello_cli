@@ -77,8 +77,11 @@ void StateListener::run(const std::stop_token& stop)
                          "first telemetry from " + datagram->from_host + ": " + datagram->data);
         }
         {
+            const auto now = std::chrono::steady_clock::now();
             const std::scoped_lock lock(mutex_);
-            latest_ = StateSnapshot{*state, std::chrono::steady_clock::now()};
+            const auto changed =
+                latest_ && latest_->state.time == state->time ? latest_->motors_changed : now;
+            latest_ = StateSnapshot{*state, now, changed};
         }
     }
 }

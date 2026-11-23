@@ -114,6 +114,10 @@ constexpr std::chrono::milliseconds kStaleInput{500};
 constexpr std::chrono::milliseconds kLandConfirmWait{2000};
 constexpr int kLandedHeightCm = 30;
 
+// Fresh telemetry shows the drone this low with its motors-on time standing still this long while
+// the CLI takes it for flying: it has landed or dropped by itself (an IMU fault, a crash).
+constexpr std::chrono::milliseconds kMotorsIdleAfter{3000};
+
 // No reply and no telemetry this long while commands went out: the drone is off or out of reach.
 // A Tello that hears nothing for 15 s lands by itself, so a "flying" drone counts as landed.
 constexpr std::chrono::milliseconds kDroneLostAfter{15'000};
@@ -184,6 +188,12 @@ public:
     void set_drone_lost_after(std::chrono::milliseconds after)
     {
         lost_after_ = after;
+    }
+
+    // Tests shorten kMotorsIdleAfter.
+    void set_motors_idle_after(std::chrono::milliseconds after)
+    {
+        motors_idle_after_ = after;
     }
 
     // Tests shorten kOffNetworkAfter.
@@ -262,6 +272,9 @@ private:
     void confirm_landed();
     [[nodiscard]] std::optional<std::chrono::steady_clock::duration> drone_silence() const;
     bool forget_lost_flight();
+    [[nodiscard]] std::optional<tello::StateSnapshot> resting_on_the_ground() const;
+    bool forget_self_landing();
+    bool down_after_error(std::string_view command, std::string_view message);
     [[nodiscard]] std::optional<std::string> off_network() const;
     [[nodiscard]] static bool needs_link(const CommandInfo& info, const Args& args);
     bool unreachable_in_the_air(std::string_view what);
@@ -289,6 +302,7 @@ private:
     Interrupted interrupted_;
     std::chrono::milliseconds lost_after_ = kDroneLostAfter;
     std::chrono::milliseconds off_network_after_ = kOffNetworkAfter;
+    std::chrono::milliseconds motors_idle_after_ = kMotorsIdleAfter;
     std::vector<Entry> entries_;
     std::vector<CommandInfo> commands_;
     bool exit_requested_ = false;
