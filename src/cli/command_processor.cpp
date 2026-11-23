@@ -66,6 +66,32 @@ bool imu_lost(std::string_view message)
     return lower.find("no valid imu") != std::string::npos;
 }
 
+// A figure's photo folder is made before the takeoff; one left without a single photo (the
+// figure stopped early) goes away when the figure ends, however it ends.
+class DropEmptyFolder
+{
+public:
+    explicit DropEmptyFolder(std::filesystem::path dir)
+        : dir_(std::move(dir))
+    {
+    }
+    ~DropEmptyFolder()
+    {
+        std::error_code ec;
+        if (!dir_.empty() && std::filesystem::is_empty(dir_, ec) && !ec)
+        {
+            std::filesystem::remove(dir_, ec);
+        }
+    }
+    DropEmptyFolder(const DropEmptyFolder&) = delete;
+    DropEmptyFolder& operator=(const DropEmptyFolder&) = delete;
+    DropEmptyFolder(DropEmptyFolder&&) = delete;
+    DropEmptyFolder& operator=(DropEmptyFolder&&) = delete;
+
+private:
+    std::filesystem::path dir_;
+};
+
 std::vector<std::string_view> split(std::string_view s, std::string_view separators)
 {
     std::vector<std::string_view> out;
@@ -2301,6 +2327,7 @@ void CommandProcessor::run_figure(const FigureSpec& spec, const Args& args)
             throw UsageError(name + ": " + e.what());
         }
     }
+    const DropEmptyFolder drop_empty(dir);
     out_ << name << ": " << plan.summary << (photos > 0 ? " -> " + dir.string() : std::string())
          << '\n'
          << std::flush;
@@ -2399,7 +2426,11 @@ void CommandProcessor::run_figure(const FigureSpec& spec, const Args& args)
         }
     }
     out_ << name << ": done";
-    if (photos > 0)
+    if (photos > 0 && saved == 0)
+    {
+        out_ << ", no photos taken";
+    }
+    else if (photos > 0)
     {
         out_ << ", " << saved << " of " << photos << " photos in " << dir.string();
     }

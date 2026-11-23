@@ -514,6 +514,10 @@ TEST_F(PhotoFigures, FailedTurnLandsWhereTheDroneIs)
     EXPECT_NE(out.str().find("flower: stopped before the first photo"), std::string::npos)
         << out.str();
     EXPECT_TRUE(photos().empty());
+    for (const auto& entry : std::filesystem::directory_iterator(dir))
+    {
+        EXPECT_FALSE(entry.is_directory()) << "empty photo folder left: " << entry.path();
+    }
 }
 
 TEST_F(PhotoFigures, VideoRecordsTheWholeFigure)
