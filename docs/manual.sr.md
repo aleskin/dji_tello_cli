@@ -122,7 +122,7 @@ Jedinice: centimetri, stepeni, cm/s.
 | `polygon <uglova> [poluprečnik] [visina] [flat\|upright] [brzina]` | mnogougao sa 3..12 uglova u vazduhu | 100, 200, flat |
 | `star [poluprečnik] [visina] [flat\|upright] [brzina]` | petokraka zvezda | 100, 200, flat |
 | `rings [poluprečnik] [od vis.] [do vis.] [prstenova] [korak] [brzina]` | nekoliko krugova fotografija na različitim visinama, kamera ka centru, sve u jedan folder — za 3D model (Meshroom i sl.) | 150, 100..300, 3 prstena |
-| `timelapse [interval s] [kadrova] [visina]` | lebdi i snima kadar na svakih N sekundi; posle sletanja spaja kadrove u `timelapse.mp4` (10 kadrova/s) | 2 s, 30 kadrova, 200 |
+| `timelapse [interval s] [kadrova] [visina]` | lebdi i snima kadar na svakih N sekundi; posle sletanja spaja kadrove u `timelapse.mp4` (25 kadrova/s, sa pretapanjem između kadrova) | 1 s, 60 kadrova, 200 |
 | `hyperlapse [rastojanje] [kadrova] [visina] [brzina]` | polako leti napred snimajući kadrove, vraća se; spaja u `hyperlapse.mp4` | 500, 20 kadrova, 200, 20 |
 | `scan [širina] [od vis.] [do vis.] [korak] [brzina]` | okrenut ka zidu: redovi fotografija u obliku zmije (red, uspon, red nazad) sa preklapanjem | 300, 100..300, 50 |
 

@@ -418,7 +418,8 @@ TEST_F(PhotoFigures, TimelapseMakesAMovie)
     const auto file = dir / p.back();
     ASSERT_EQ(avformat_open_input(&movie, file.c_str(), nullptr, nullptr), 0);
     ASSERT_GE(avformat_find_stream_info(movie, nullptr), 0);
-    EXPECT_EQ(movie->streams[0]->nb_frames, 5);
+    EXPECT_EQ(movie->streams[0]->nb_frames, 5 * 3 + 4 * 9); // each photo 3 frames, 9 crossfades
+    EXPECT_EQ(movie->streams[0]->avg_frame_rate.num / movie->streams[0]->avg_frame_rate.den, 25);
     EXPECT_EQ(movie->streams[0]->codecpar->width, 960);
     avformat_close_input(&movie);
 }
@@ -593,7 +594,7 @@ TEST_F(FigureRefusals, BadArgumentsSendNothing)
         {"rings 150 100 120 3", "rings: rings closer than 20 cm"},
         {"scan 40 100 300 50", "scan: step 50 cm is wider than the width 40 cm"},
         {"scan 300 300 100", "scan: from must not be above to"},
-        {"timelapse 1", "timelapse interval (s) must be 2..60, got 1"},
+        {"timelapse 0", "timelapse interval (s) must be 1..60, got 0"},
         {"hyperlapse 100 10", "hyperlapse: 11 cm between frames"},
         {"eight 100 200 30 upright",
          "eight: the lowest point (height - radius) must be at least 50 cm, got 0"},

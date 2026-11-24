@@ -125,7 +125,7 @@ beliebiger Stelle stehen. Einheiten: Zentimeter, Grad, cm/s.
 | `polygon <Ecken> [Radius] [Höhe] [flat\|upright] [Tempo]` | Vieleck mit 3..12 Ecken in der Luft | 100, 200, flat |
 | `star [Radius] [Höhe] [flat\|upright] [Tempo]` | fünfzackiger Stern | 100, 200, flat |
 | `rings [Radius] [von Höhe] [bis Höhe] [Ringe] [Schritt] [Tempo]` | mehrere Fotokreise auf verschiedenen Höhen, Kamera zur Mitte, alles in einem Ordner — für ein 3D-Modell (Meshroom u. ä.) | 150, 100..300, 3 Ringe |
-| `timelapse [Intervall s] [Bilder] [Höhe]` | schwebt und nimmt alle N Sekunden ein Bild auf; nach der Landung werden die Bilder zu `timelapse.mp4` (10 Bilder/s) zusammengefügt | 2 s, 30 Bilder, 200 |
+| `timelapse [Intervall s] [Bilder] [Höhe]` | schwebt und nimmt alle N Sekunden ein Bild auf; nach der Landung werden die Bilder zu `timelapse.mp4` (25 Bilder/s, mit Überblendungen) zusammengefügt | 1 s, 60 Bilder, 200 |
 | `hyperlapse [Abstand] [Bilder] [Höhe] [Tempo]` | fliegt langsam nach vorn und nimmt Bilder auf, kommt zurück; fügt sie zu `hyperlapse.mp4` zusammen | 500, 20 Bilder, 200, 20 |
 | `scan [Breite] [von Höhe] [bis Höhe] [Schritt] [Tempo]` | vor einer Wand: Fotoreihen in Schlangenlinien (Reihe, höher, Reihe zurück) mit Überlappung | 300, 100..300, 50 |
 

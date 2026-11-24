@@ -2378,7 +2378,10 @@ void CommandProcessor::run_figure(const FigureSpec& spec, const Args& args)
     {
         if (step.kind == FigureStep::Kind::Photo)
         {
-            sleep_(kPhotoSettle);
+            if (step.pause.count() > 0)
+            {
+                sleep_(step.pause);
+            }
             ++taken;
             try
             {
@@ -2423,7 +2426,7 @@ void CommandProcessor::run_figure(const FigureSpec& spec, const Args& args)
         const auto movie = dir / (name + ".mp4");
         try
         {
-            video::make_movie(frames, movie, plan.movie_fps);
+            video::make_movie(frames, movie, plan.movie_fps, plan.movie_hold, plan.movie_blend);
             out_ << name << ": movie " << movie.string() << '\n';
         }
         catch (const std::runtime_error& e)

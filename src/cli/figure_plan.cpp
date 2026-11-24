@@ -45,14 +45,17 @@ constexpr int kStarPoints = 5;
 constexpr int kRingsRadiusCm = 150;
 constexpr int kRings = 3;
 constexpr int kMaxRings = 10;
-constexpr int kTimelapseIntervalS = 2;
-constexpr int kMinTimelapseIntervalS = 2; // the photo settle takes one
+constexpr int kTimelapseIntervalS = 1;
+constexpr int kMinTimelapseIntervalS = 1;
 constexpr int kMaxTimelapseIntervalS = 60;
-constexpr int kTimelapseFrames = 30;
+constexpr int kTimelapseFrames = 60;
 constexpr int kMaxTimelapseFrames = 300;
 constexpr int kHyperlapseFrames = 20;
 constexpr int kHyperlapseSpeed = 20;
-constexpr int kMovieFps = 10;
+// The movie: 25 fps, each photo shown 3 frames, then 9 frames fade into the next (~0.5 s each).
+constexpr int kMovieFps = 25;
+constexpr int kMovieHold = 3;
+constexpr int kMovieBlend = 9;
 constexpr int kScanWidthCm = 300;
 constexpr int kMaxScanWidthCm = 1000;
 constexpr std::chrono::milliseconds kPullHold{2000}; // a still shot at both ends of a video move
@@ -757,17 +760,18 @@ FigurePlan plan_timelapse(const FigureArgs& args, const std::string& usage)
         new_plan(name,
                  std::to_string(frames) + " frames every " + std::to_string(interval) + " s at " +
                      std::to_string(height) + " cm, camera forward, a movie at " +
-                     std::to_string(kMovieFps) + " fps",
+                     std::to_string(kMovieFps) + " fps with crossfades",
                  kFigureSpeed);
     plan.movie_fps = kMovieFps;
+    plan.movie_hold = kMovieHold;
+    plan.movie_blend = kMovieBlend;
     plan.steps.push_back(FigureStep::move(0, 0, height));
-    for (int k = 0; k < frames; ++k)
+    plan.steps.push_back(FigureStep::photo());
+    // After the first photo the drone already hovers: one shot every interval, no settle.
+    for (int k = 1; k < frames; ++k)
     {
-        if (k > 0)
-        {
-            plan.steps.push_back(FigureStep::wait(std::chrono::seconds(interval) - kPhotoSettle));
-        }
-        plan.steps.push_back(FigureStep::photo());
+        plan.steps.push_back(FigureStep::wait(std::chrono::seconds(interval)));
+        plan.steps.push_back(FigureStep::photo(std::chrono::milliseconds(0)));
     }
     return plan;
 }
@@ -796,9 +800,11 @@ FigurePlan plan_hyperlapse(const FigureArgs& args, const std::string& usage)
     FigurePlan plan = new_plan(name,
                                std::to_string(frames) + " frames over " + std::to_string(distance) +
                                    " cm forward at " + std::to_string(height) + " cm, a movie at " +
-                                   std::to_string(kMovieFps) + " fps",
+                                   std::to_string(kMovieFps) + " fps with crossfades",
                                speed);
     plan.movie_fps = kMovieFps;
+    plan.movie_hold = kMovieHold;
+    plan.movie_blend = kMovieBlend;
     for (int k = 0; k < frames; ++k)
     {
         plan.steps.push_back(FigureStep::move(step * k, 0, height));
@@ -879,10 +885,11 @@ FigureStep FigureStep::face(double heading_deg)
     return s;
 }
 
-FigureStep FigureStep::photo()
+FigureStep FigureStep::photo(std::chrono::milliseconds settle)
 {
     FigureStep s;
     s.kind = Kind::Photo;
+    s.pause = settle;
     return s;
 }
 
@@ -1148,7 +1155,7 @@ FigureEstimate estimate(const FigurePlan& plan, drone::PositionSource& source)
             std::string file = std::to_string(++photo);
             file.insert(0, 2 - std::min<std::size_t>(file.size(), 2), '0');
             e.lines.push_back("photo " + file);
-            seconds += std::chrono::duration<double>(kPhotoSettle).count();
+            seconds += std::chrono::duration<double>(step.pause).count();
             continue;
         }
         if (step.kind == FigureStep::Kind::Pause)

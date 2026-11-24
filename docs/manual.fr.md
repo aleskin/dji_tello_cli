@@ -126,7 +126,7 @@ atterrissage. Tous les paramètres sont facultatifs et se suivent dans l'ordre ;
 | `polygon <coins> [rayon] [hauteur] [flat\|upright] [vitesse]` | polygone de 3 à 12 coins dans les airs | 100, 200, flat |
 | `star [rayon] [hauteur] [flat\|upright] [vitesse]` | étoile à cinq branches | 100, 200, flat |
 | `rings [rayon] [de haut.] [à haut.] [anneaux] [pas] [vitesse]` | plusieurs cercles de photos à différentes hauteurs, caméra vers le centre, tout dans un dossier — pour un modèle 3D (Meshroom, etc.) | 150, 100..300, 3 anneaux |
-| `timelapse [intervalle s] [images] [hauteur]` | reste en vol stationnaire et prend une image toutes les N secondes ; après l'atterrissage, assemble les images en `timelapse.mp4` (10 images/s) | 2 s, 30 images, 200 |
+| `timelapse [intervalle s] [images] [hauteur]` | reste en vol stationnaire et prend une image toutes les N secondes ; après l'atterrissage, assemble les images en `timelapse.mp4` (25 images/s, avec fondus enchaînés) | 1 s, 60 images, 200 |
 | `hyperlapse [distance] [images] [hauteur] [vitesse]` | vole lentement vers l'avant en prenant des images, revient ; les assemble en `hyperlapse.mp4` | 500, 20 images, 200, 20 |
 | `scan [largeur] [de haut.] [à haut.] [pas] [vitesse]` | face à un mur : rangées de photos en serpentin (rangée, montée, rangée retour) avec recouvrement | 300, 100..300, 50 |
 

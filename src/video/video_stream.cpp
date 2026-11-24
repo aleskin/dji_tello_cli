@@ -79,6 +79,124 @@ std::pair<int, int> jpeg_size(const std::vector<std::uint8_t>& jpeg)
     throw std::runtime_error("movie: not a JPEG picture");
 }
 
+struct FrameFree
+{
+    void operator()(AVFrame* p) const
+    {
+        av_frame_free(&p);
+    }
+};
+
+struct CodecFree
+{
+    void operator()(AVCodecContext* p) const
+    {
+        avcodec_free_context(&p);
+    }
+};
+
+using FramePtr = std::unique_ptr<AVFrame, FrameFree>;
+using CodecPtr = std::unique_ptr<AVCodecContext, CodecFree>;
+
+// One JPEG file into a picture (full-range 4:2:0, as the photos are saved).
+FramePtr decode_jpeg(const std::vector<std::uint8_t>& jpeg)
+{
+    const AVCodec* codec = avcodec_find_decoder(AV_CODEC_ID_MJPEG);
+    const CodecPtr ctx(codec != nullptr ? avcodec_alloc_context3(codec) : nullptr);
+    if (!ctx || avcodec_open2(ctx.get(), codec, nullptr) < 0)
+    {
+        throw std::runtime_error("movie: no JPEG decoder in libavcodec");
+    }
+    const std::unique_ptr<AVPacket, PacketDeleter> packet(av_packet_alloc());
+    FramePtr frame(av_frame_alloc());
+    if (!packet || !frame || av_new_packet(packet.get(), static_cast<int>(jpeg.size())) < 0)
+    {
+        throw std::runtime_error("movie: out of memory");
+    }
+    std::ranges::copy(jpeg, packet->data);
+    if (avcodec_send_packet(ctx.get(), packet.get()) < 0 ||
+        avcodec_send_packet(ctx.get(), nullptr) < 0 ||
+        avcodec_receive_frame(ctx.get(), frame.get()) < 0)
+    {
+        throw std::runtime_error("movie: cannot decode a photo");
+    }
+    if (frame->format != AV_PIX_FMT_YUVJ420P && frame->format != AV_PIX_FMT_YUV420P)
+    {
+        throw std::runtime_error("movie: unexpected photo format");
+    }
+    return frame;
+}
+
+// a and b mixed: weight of b is k / n.
+FramePtr blend_frames(const AVFrame& a, const AVFrame& b, int k, int n)
+{
+    FramePtr out(av_frame_alloc());
+    if (!out)
+    {
+        throw std::runtime_error("movie: out of memory");
+    }
+    out->format = AV_PIX_FMT_YUVJ420P;
+    out->width = a.width;
+    out->height = a.height;
+    out->color_range = AVCOL_RANGE_JPEG;
+    if (av_frame_get_buffer(out.get(), 0) < 0)
+    {
+        throw std::runtime_error("movie: out of memory");
+    }
+    auto mix = [&a, &b, &out, k, n](int plane, int width, int height)
+    {
+        for (int y = 0; y < height; ++y)
+        {
+            const std::uint8_t* pa =
+                a.data[plane] + static_cast<std::ptrdiff_t>(y) * a.linesize[plane];
+            const std::uint8_t* pb =
+                b.data[plane] + static_cast<std::ptrdiff_t>(y) * b.linesize[plane];
+            std::uint8_t* po =
+                out->data[plane] + static_cast<std::ptrdiff_t>(y) * out->linesize[plane];
+            for (int x = 0; x < width; ++x)
+            {
+                po[x] = static_cast<std::uint8_t>((pa[x] * (n - k) + pb[x] * k + n / 2) / n);
+            }
+        }
+    };
+    mix(0, a.width, a.height);
+    mix(1, (a.width + 1) / 2, (a.height + 1) / 2);
+    mix(2, (a.width + 1) / 2, (a.height + 1) / 2);
+    return out;
+}
+
+// A picture into JPEG bytes with the photo quality.
+std::vector<std::uint8_t> encode_jpeg(AVFrame& frame)
+{
+    const AVCodec* mjpeg = avcodec_find_encoder(AV_CODEC_ID_MJPEG);
+    const CodecPtr ctx(mjpeg != nullptr ? avcodec_alloc_context3(mjpeg) : nullptr);
+    if (!ctx)
+    {
+        throw std::runtime_error("movie: no JPEG encoder in libavcodec");
+    }
+    ctx->width = frame.width;
+    ctx->height = frame.height;
+    ctx->time_base = AVRational{1, 25};
+    ctx->pix_fmt = AV_PIX_FMT_YUVJ420P;
+    ctx->color_range = AVCOL_RANGE_JPEG;
+    ctx->flags = static_cast<int>(static_cast<unsigned>(ctx->flags) |
+                                  static_cast<unsigned>(AV_CODEC_FLAG_QSCALE));
+    ctx->global_quality = FF_QP2LAMBDA * 3;
+    if (avcodec_open2(ctx.get(), mjpeg, nullptr) < 0)
+    {
+        throw std::runtime_error("movie: cannot open the JPEG encoder");
+    }
+    frame.pts = 0;
+    const std::unique_ptr<AVPacket, PacketDeleter> packet(av_packet_alloc());
+    if (!packet || avcodec_send_frame(ctx.get(), &frame) < 0 ||
+        avcodec_send_frame(ctx.get(), nullptr) < 0 ||
+        avcodec_receive_packet(ctx.get(), packet.get()) < 0)
+    {
+        throw std::runtime_error("movie: JPEG encoding failed");
+    }
+    return {packet->data, packet->data + packet->size};
+}
+
 } // namespace
 
 struct VideoStream::Input
@@ -556,7 +674,7 @@ void VideoStream::save_photo(const std::filesystem::path& path) const
 }
 
 void make_movie(const std::vector<std::filesystem::path>& frames, const std::filesystem::path& path,
-                int fps)
+                int fps, int hold, int blend)
 {
     struct Muxer
     {
@@ -622,20 +740,16 @@ void make_movie(const std::vector<std::filesystem::path>& frames, const std::fil
     {
         throw std::runtime_error("movie: out of memory");
     }
-    for (std::size_t i = 0; i < frames.size(); ++i)
+    std::int64_t index = 0;
+    auto write = [&](const std::vector<std::uint8_t>& jpeg)
     {
-        const auto jpeg = i == 0 ? first : read_file(frames[i]);
-        if (jpeg_size(jpeg) != std::pair{width, height})
-        {
-            throw std::runtime_error("movie: " + frames[i].string() + " has another size");
-        }
         if (av_new_packet(packet.get(), static_cast<int>(jpeg.size())) < 0)
         {
             throw std::runtime_error("movie: out of memory");
         }
         std::ranges::copy(jpeg, packet->data);
         packet->stream_index = st->index;
-        packet->pts = av_rescale_q(static_cast<std::int64_t>(i), AVRational{1, fps}, st->time_base);
+        packet->pts = av_rescale_q(index++, AVRational{1, fps}, st->time_base);
         packet->dts = packet->pts;
         packet->duration = av_rescale_q(1, AVRational{1, fps}, st->time_base);
         packet->flags = static_cast<int>(static_cast<unsigned>(packet->flags) |
@@ -645,6 +759,31 @@ void make_movie(const std::vector<std::filesystem::path>& frames, const std::fil
         if (rc < 0)
         {
             throw std::runtime_error("movie: cannot write a frame: " + av_error(rc));
+        }
+    };
+    FramePtr previous;
+    for (std::size_t i = 0; i < frames.size(); ++i)
+    {
+        const auto jpeg = i == 0 ? first : read_file(frames[i]);
+        if (jpeg_size(jpeg) != std::pair{width, height})
+        {
+            throw std::runtime_error("movie: " + frames[i].string() + " has another size");
+        }
+        if (blend > 0)
+        {
+            FramePtr current = decode_jpeg(jpeg);
+            if (previous)
+            {
+                for (int k = 1; k <= blend; ++k)
+                {
+                    write(encode_jpeg(*blend_frames(*previous, *current, k, blend + 1)));
+                }
+            }
+            previous = std::move(current);
+        }
+        for (int k = 0; k < hold; ++k)
+        {
+            write(jpeg);
         }
     }
 }

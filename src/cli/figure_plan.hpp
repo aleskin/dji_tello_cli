@@ -44,7 +44,7 @@ struct FigureStep
     {
         Move,    // straight to (x, y, z), the heading stays
         Face,    // turn to heading
-        Photo,   // hover kPhotoSettle, save a frame
+        Photo,   // hover `pause` (kPhotoSettle by default), save a frame
         Command, // an SDK command as is: "flip l"
         Pause    // hover for pause
     };
@@ -58,7 +58,7 @@ struct FigureStep
 
     static FigureStep move(double x_cm, double y_cm, double z_cm);
     static FigureStep face(double heading_deg);
-    static FigureStep photo();
+    static FigureStep photo(std::chrono::milliseconds settle = kPhotoSettle);
     static FigureStep sdk(std::string command);
     static FigureStep wait(std::chrono::milliseconds pause);
 };
@@ -72,6 +72,8 @@ struct FigurePlan
     int min_battery = 0; // percent needed before the takeoff
     bool video = false;  // record the camera from the takeoff to the landing
     int movie_fps = 0;   // > 0: the photos are put together into an MP4 after the landing
+    int movie_hold = 1;  // movie frames each photo is shown
+    int movie_blend = 0; // crossfade frames between two photos
     std::vector<FigureStep> steps;
 
     [[nodiscard]] int photos() const;

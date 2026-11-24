@@ -106,9 +106,10 @@ private:
 // dir/tello_YYYY-MM-DD_HH-MM-SS_mmm.jpg: milliseconds, so photos in one second do not collide.
 [[nodiscard]] std::filesystem::path default_photo_path(const std::filesystem::path& dir);
 
-// JPEG frames (all of one size) into an MP4 movie at fps frames per second, without re-encoding.
-// Throws std::runtime_error.
+// JPEG frames (all of one size) into an MP4 movie at fps frames per second. Each photo is shown
+// `hold` frames as is; with `blend` > 0 that many crossfade frames (re-encoded) lead from one
+// photo to the next, so a timelapse flows instead of jumping. Throws std::runtime_error.
 void make_movie(const std::vector<std::filesystem::path>& frames, const std::filesystem::path& path,
-                int fps);
+                int fps, int hold = 1, int blend = 0);
 
 } // namespace video

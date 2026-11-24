@@ -125,7 +125,7 @@ aterrizaje. Todos los parámetros son opcionales y van en orden; las palabras (`
 | `polygon <vértices> [radio] [altura] [flat\|upright] [velocidad]` | polígono de 3 a 12 vértices en el aire | 100, 200, flat |
 | `star [radio] [altura] [flat\|upright] [velocidad]` | estrella de cinco puntas | 100, 200, flat |
 | `rings [radio] [desde alt.] [hasta alt.] [anillos] [paso] [velocidad]` | varios círculos de fotos a distintas alturas, cámara al centro, todo en una carpeta — para un modelo 3D (Meshroom, etc.) | 150, 100..300, 3 anillos |
-| `timelapse [intervalo s] [fotogramas] [altura]` | se mantiene en el aire y toma un fotograma cada N segundos; tras aterrizar, une los fotogramas en `timelapse.mp4` (10 fps) | 2 s, 30 fotogramas, 200 |
+| `timelapse [intervalo s] [fotogramas] [altura]` | se mantiene en el aire y toma un fotograma cada N segundos; tras aterrizar, une los fotogramas en `timelapse.mp4` (25 fps, con fundidos entre fotogramas) | 1 s, 60 fotogramas, 200 |
 | `hyperlapse [distancia] [fotogramas] [altura] [velocidad]` | vuela despacio hacia delante tomando fotogramas, vuelve; los une en `hyperlapse.mp4` | 500, 20 fotogramas, 200, 20 |
 | `scan [ancho] [desde alt.] [hasta alt.] [paso] [velocidad]` | frente a una pared: filas de fotos en zigzag (fila, subida, fila de vuelta) con solapamiento | 300, 100..300, 50 |
 
