@@ -100,7 +100,7 @@ Jedinice: centimetri, stepeni, cm/s.
 
 - **`dry`** na kraju bilo koje figure — ništa se ne šalje dronu, prikazuje se spisak komandi,
   broj fotografija, vreme, najveća visina i potrošnja baterije. Na primer: `flower 300 150 dry`.
-- **`video`** — snima video celog leta u `~/Videos/tello/`.
+- **`video`** — snima video celog leta u `~/Videos/tello/<figura>_DATUM_VREME.mp4`, komanda je u komentaru MP4.
 - Fotografije figure idu u poseban folder `~/Pictures/tello/<figura>_DATUM_VREME/01.jpg, 02.jpg...`
 - Pre poletanja program proverava da li ima slike sa kamere; bez nje ne poleće.
 - Ako komanda u vazduhu ne uspe — figura se prekida i dron sleće.

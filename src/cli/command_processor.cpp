@@ -2337,8 +2337,14 @@ void CommandProcessor::run_figure(const FigureSpec& spec, const Args& args)
         plan.video && video_->status().recording.empty() && !video_->status().waiting_for_keyframe;
     if (record)
     {
-        const auto path = video::default_recording_path(session_.video_dir);
-        video_->start_recording(path);
+        std::string line = spec.name;
+        for (const auto arg : args)
+        {
+            line += ' ';
+            line += arg;
+        }
+        const auto path = video::default_recording_path(session_.video_dir, name);
+        video_->start_recording(path, name, line + ": " + plan.summary);
         out_ << name << ": recording to " << path.string() << '\n';
     }
     auto finish_video = [this, record, &name]

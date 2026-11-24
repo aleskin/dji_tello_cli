@@ -20,6 +20,7 @@ extern "C"
 #include <cmath>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -536,6 +537,12 @@ TEST_F(PhotoFigures, VideoRecordsTheWholeFigure)
         {
             ++videos;
             EXPECT_GT(file.file_size(), 0U);
+            EXPECT_TRUE(file.path().filename().string().starts_with("flower_")) << file.path();
+            std::ifstream in(file.path(), std::ios::binary);
+            const std::string bytes((std::istreambuf_iterator<char>(in)),
+                                    std::istreambuf_iterator<char>());
+            EXPECT_NE(bytes.find("flower 200 100 120 video: "), std::string::npos)
+                << "no command in the MP4 metadata";
         }
     }
     EXPECT_EQ(videos, 1);

@@ -103,7 +103,7 @@ aterrizaje. Todos los parámetros son opcionales y van en orden; las palabras (`
 - **`dry`** al final de cualquier figura — no se envía nada al dron; se muestra la lista de
   comandos, el número de fotos, el tiempo, la altura máxima y el consumo de batería.
   Por ejemplo: `flower 300 150 dry`.
-- **`video`** — graba en vídeo todo el vuelo en `~/Videos/tello/`.
+- **`video`** — graba en vídeo todo el vuelo en `~/Videos/tello/<figura>_FECHA_HORA.mp4`, con el comando en el comentario del MP4.
 - Las fotos de una figura van a una carpeta propia `~/Pictures/tello/<figura>_FECHA_HORA/01.jpg, 02.jpg...`
 - Antes de despegar, el programa comprueba que hay imagen de la cámara; sin ella no despega.
 - Si un comando falla en el aire, la figura se interrumpe y el dron aterriza.

@@ -161,11 +161,14 @@ VideoStream::~VideoStream()
                               " packets, " + std::to_string(status_.frames) + " frames");
 }
 
-void VideoStream::start_recording(const std::filesystem::path& path)
+void VideoStream::start_recording(const std::filesystem::path& path, const std::string& title,
+                                  const std::string& comment)
 {
     const std::scoped_lock out_lock(output_mutex_);
     close_output_locked();
     pending_path_ = path;
+    pending_title_ = title;
+    pending_comment_ = comment;
     const std::scoped_lock lock(mutex_);
     status_.waiting_for_keyframe = true;
     status_.error.clear();
@@ -240,6 +243,16 @@ void VideoStream::open_output_locked()
     }
     st->codecpar->codec_tag = 0;
     st->time_base = AVRational{1, 90'000};
+    if (!pending_title_.empty())
+    {
+        av_dict_set(&out->context->metadata, "title", pending_title_.c_str(), 0);
+    }
+    if (!pending_comment_.empty())
+    {
+        av_dict_set(&out->context->metadata, "comment", pending_comment_.c_str(), 0);
+    }
+    pending_title_.clear();
+    pending_comment_.clear();
     rc = avio_open(&out->context->pb, path.c_str(), AVIO_FLAG_WRITE);
     if (rc < 0)
     {
@@ -654,15 +667,16 @@ std::filesystem::path default_photo_path(const std::filesystem::path& dir)
     return dir / (std::string(name.data(), n) + suffix.data());
 }
 
-std::filesystem::path default_recording_path(const std::filesystem::path& dir)
+std::filesystem::path default_recording_path(const std::filesystem::path& dir,
+                                             const std::string& prefix)
 {
     std::filesystem::create_directories(dir);
     const std::time_t now = std::time(nullptr);
     std::tm local{};
     localtime_r(&now, &local);
     std::array<char, 64> name{};
-    std::strftime(name.data(), name.size(), "tello_%Y-%m-%d_%H-%M-%S.mp4", &local);
-    return dir / name.data();
+    std::strftime(name.data(), name.size(), "_%Y-%m-%d_%H-%M-%S.mp4", &local);
+    return dir / (prefix + name.data());
 }
 
 } // namespace video

@@ -52,8 +52,10 @@ public:
     VideoStream& operator=(VideoStream&&) = delete;
 
     // The file is created at the next keyframe once the stream is known (an MP4 must start
-    // with a keyframe). A previous recording is finished first.
-    void start_recording(const std::filesystem::path& path);
+    // with a keyframe). A previous recording is finished first. A non-empty `title` / `comment`
+    // go into the MP4 metadata (what was filmed and how).
+    void start_recording(const std::filesystem::path& path, const std::string& title = {},
+                         const std::string& comment = {});
 
     // Writes the MP4 index and closes the file. Returns its path, empty if nothing was written.
     std::filesystem::path stop_recording();
@@ -88,6 +90,8 @@ private:
     std::mutex output_mutex_;
     std::unique_ptr<Output> output_;
     std::filesystem::path pending_path_;
+    std::string pending_title_;
+    std::string pending_comment_;
     mutable std::mutex mutex_; // the decoded picture and the status below
     std::unique_ptr<Input> input_;
     StreamStatus status_;
@@ -95,8 +99,9 @@ private:
     std::jthread thread_; // last: started after everything it uses exists
 };
 
-// dir/tello_YYYY-MM-DD_HH-MM-SS.mp4 (directory created if missing).
-[[nodiscard]] std::filesystem::path default_recording_path(const std::filesystem::path& dir);
+// dir/<prefix>_YYYY-MM-DD_HH-MM-SS.mp4 (directory created if missing).
+[[nodiscard]] std::filesystem::path default_recording_path(const std::filesystem::path& dir,
+                                                           const std::string& prefix = "tello");
 
 // dir/tello_YYYY-MM-DD_HH-MM-SS_mmm.jpg: milliseconds, so photos in one second do not collide.
 [[nodiscard]] std::filesystem::path default_photo_path(const std::filesystem::path& dir);

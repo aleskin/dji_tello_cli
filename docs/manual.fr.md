@@ -104,7 +104,7 @@ atterrissage. Tous les paramètres sont facultatifs et se suivent dans l'ordre ;
 - **`dry`** à la fin de n'importe quelle figure — rien n'est envoyé au drone ; on voit la liste des
   commandes, le nombre de photos, la durée, la hauteur maximale et la consommation de batterie.
   Exemple : `flower 300 150 dry`.
-- **`video`** — filme tout le vol dans `~/Videos/tello/`.
+- **`video`** — filme tout le vol dans `~/Videos/tello/<figure>_DATE_HEURE.mp4`, la commande dans le commentaire du MP4.
 - Les photos d'une figure vont dans un dossier à part `~/Pictures/tello/<figure>_DATE_HEURE/01.jpg, 02.jpg...`
 - Avant le décollage, le programme vérifie qu'il y a une image de la caméra ; sans elle, il ne décolle pas.
 - Si une commande échoue en vol, la figure s'arrête et le drone atterrit.

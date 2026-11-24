@@ -103,7 +103,7 @@ beliebiger Stelle stehen. Einheiten: Zentimeter, Grad, cm/s.
 
 - **`dry`** am Ende jeder Figur — nichts wird an die Drohne gesendet; angezeigt werden die Befehle,
   die Zahl der Fotos, die Dauer, die größte Höhe und der Akkuverbrauch. Beispiel: `flower 300 150 dry`.
-- **`video`** — nimmt den ganzen Flug als Video in `~/Videos/tello/` auf.
+- **`video`** — nimmt den ganzen Flug als Video in `~/Videos/tello/<Figur>_DATUM_ZEIT.mp4` auf, der Befehl steht im MP4-Kommentar.
 - Die Fotos einer Figur landen in einem eigenen Ordner `~/Pictures/tello/<Figur>_DATUM_ZEIT/01.jpg, 02.jpg...`
 - Vor dem Start prüft das Programm, ob ein Kamerabild da ist; ohne Bild startet es nicht.
 - Schlägt ein Befehl in der Luft fehl, wird die Figur abgebrochen und die Drohne landet.
