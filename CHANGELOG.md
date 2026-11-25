@@ -5,6 +5,24 @@ Format: `## [version] — YYYY-MM-DD` followed by grouped changes. Written by `m
 
 ---
 
+## [0.1.3] — 2026-11-25
+
+### Fixed
+- **[TEL-00070]** cli: remove a figure's photo folder left empty
+- **[TEL-00069]** cli: detect a drone that landed by itself from telemetry
+- **[TEL-00067]** cli: treat 'error Motor stop' as on the ground, skip land
+- **[TEL-00066]** core: detect a PC off the drone's Wi-Fi, do not try to land
+- **[TEL-00065]** cli: detect a lost drone, a silent drone is not in the air
+- **[TEL-00064]** build: reconfigure when the CMake cache points to a missing cmake
+
+### Added
+- **[TEL-00073]** cli: fly a figure started in the air around the hover spot
+- **[TEL-00072]** video: smooth timelapse with 1 s interval and crossfaded 25 fps movie
+- **[TEL-00071]** video: name figure recordings after the figure, command in metadata
+- **[TEL-00068]** core: warn when the drone overheats
+
+---
+
 ## [0.1.2] — 2026-11-07
 
 ### Fixed
