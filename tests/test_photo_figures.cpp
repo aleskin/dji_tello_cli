@@ -203,6 +203,34 @@ TEST_F(PhotoFigures, FlowerOutCounterClockwise)
     EXPECT_LT(std::hypot(sim->model().x_cm, sim->model().y_cm), 3.0);
 }
 
+TEST_F(PhotoFigures, StartedInTheAirFliesAroundTheDroneWithoutATakeoff)
+{
+    start();
+    ASSERT_TRUE(cli->execute_line("takeoff"));
+    ASSERT_TRUE(cli->execute_line("cw 90"));
+    ASSERT_TRUE(cli->execute_line("forward 50"));
+    ASSERT_TRUE(cli->execute_line("up 20")); // 100 cm
+    {
+        const std::scoped_lock lock(mutex);
+        log.clear();
+    }
+    ASSERT_TRUE(cli->execute_line("flower 150 200 90 out ccw 50")) << out.str();
+    const auto c = commands();
+    ASSERT_GE(c.size(), 5U);
+    EXPECT_EQ(std::ranges::count(c, std::string("takeoff")), 0);
+    EXPECT_EQ(c[0], "streamon");
+    EXPECT_EQ(c[1], "go 0 0 50 50");     // up to 150 cm where it hovers
+    EXPECT_EQ(c[2], "go 200 0 0 50");    // out along its own heading
+    EXPECT_EQ(c[3], "go -200 200 0 50"); // the same circle as from a takeoff
+    EXPECT_EQ(c[4], "ccw 90");
+    EXPECT_EQ(c.back(), "land");
+    EXPECT_EQ(photos().size(), 4U);
+    EXPECT_NE(
+        out.str().find("flower: already in the air, flying around this spot without a takeoff"),
+        std::string::npos)
+        << out.str();
+}
+
 TEST_F(PhotoFigures, WheelStartsAtTheTopAndSwingsRightFacingThePilot)
 {
     start();
@@ -605,17 +633,6 @@ TEST_F(FigureRefusals, BadArgumentsSendNothing)
         cli.execute_line(line);
         EXPECT_NE(out.str().find(error), std::string::npos) << line << ": " << out.str();
     }
-    EXPECT_TRUE(mock->requests.empty());
-}
-
-TEST_F(FigureRefusals, StartsOnTheGroundOnly)
-{
-    cli.execute_line("takeoff");
-    mock->requests.clear();
-    cli.execute_line("wheel");
-    EXPECT_NE(out.str().find("wheel: land first, the figure starts with a takeoff"),
-              std::string::npos)
-        << out.str();
     EXPECT_TRUE(mock->requests.empty());
 }
 

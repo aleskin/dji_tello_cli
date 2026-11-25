@@ -104,6 +104,7 @@ Jedinice: centimetri, stepeni, cm/s.
 - Fotografije figure idu u poseban folder `~/Pictures/tello/<figura>_DATUM_VREME/01.jpg, 02.jpg...`
 - Pre poletanja program proverava da li ima slike sa kamere; bez nje ne poleće.
 - Ako komanda u vazduhu ne uspe — figura se prekida i dron sleće.
+- Ako je dron već u vazduhu, figura ne poleće nego leti oko tačke gde dron lebdi; „napred” figure je smer u koji dron sada gleda.
 
 | Figura | Šta radi | Podrazumevano |
 |---|---|---|

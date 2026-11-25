@@ -107,6 +107,7 @@ beliebiger Stelle stehen. Einheiten: Zentimeter, Grad, cm/s.
 - Die Fotos einer Figur landen in einem eigenen Ordner `~/Pictures/tello/<Figur>_DATUM_ZEIT/01.jpg, 02.jpg...`
 - Vor dem Start prüft das Programm, ob ein Kamerabild da ist; ohne Bild startet es nicht.
 - Schlägt ein Befehl in der Luft fehl, wird die Figur abgebrochen und die Drohne landet.
+- Ist die Drohne schon in der Luft, startet die Figur nicht neu, sondern fliegt um den Punkt, an dem die Drohne schwebt; „vorne“ ist die Richtung, in die die Drohne gerade schaut.
 
 | Figur | Was sie tut | Standard |
 |---|---|---|

@@ -107,6 +107,7 @@ aterrizaje. Todos los parámetros son opcionales y van en orden; las palabras (`
 - Las fotos de una figura van a una carpeta propia `~/Pictures/tello/<figura>_FECHA_HORA/01.jpg, 02.jpg...`
 - Antes de despegar, el programa comprueba que hay imagen de la cámara; sin ella no despega.
 - Si un comando falla en el aire, la figura se interrumpe y el dron aterriza.
+- Si el dron ya está en el aire, la figura no despega: vuela alrededor del punto donde flota; el «frente» de la figura es hacia donde mira el dron.
 
 | Figura | Qué hace | Por defecto |
 |---|---|---|

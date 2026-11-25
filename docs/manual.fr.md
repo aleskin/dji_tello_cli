@@ -108,6 +108,7 @@ atterrissage. Tous les paramètres sont facultatifs et se suivent dans l'ordre ;
 - Les photos d'une figure vont dans un dossier à part `~/Pictures/tello/<figure>_DATE_HEURE/01.jpg, 02.jpg...`
 - Avant le décollage, le programme vérifie qu'il y a une image de la caméra ; sans elle, il ne décolle pas.
 - Si une commande échoue en vol, la figure s'arrête et le drone atterrit.
+- Si le drone est déjà en vol, la figure ne décolle pas : elle se fait autour du point où il plane ; l'« avant » de la figure est la direction où regarde le drone.
 
 | Figure | Ce qu'elle fait | Par défaut |
 |---|---|---|

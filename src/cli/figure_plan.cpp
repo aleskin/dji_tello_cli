@@ -1067,6 +1067,25 @@ std::vector<std::string> route_commands(const drone::Position& from, const drone
     return out;
 }
 
+void move_plan_to(FigurePlan& plan, const drone::Position& origin)
+{
+    const double h = origin.heading_deg * kDegree;
+    for (auto& step : plan.steps)
+    {
+        if (step.kind == FigureStep::Kind::Move)
+        {
+            const double x = step.x_cm;
+            const double y = step.y_cm;
+            step.x_cm = origin.x_cm + x * std::cos(h) - y * std::sin(h);
+            step.y_cm = origin.y_cm + x * std::sin(h) + y * std::cos(h);
+        }
+        else if (step.kind == FigureStep::Kind::Face)
+        {
+            step.heading_deg += origin.heading_deg;
+        }
+    }
+}
+
 void apply_command(drone::PositionSource& source, std::string_view command)
 {
     std::istringstream in{std::string(command)};

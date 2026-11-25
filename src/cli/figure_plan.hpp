@@ -104,6 +104,10 @@ struct FigureSpec
 [[nodiscard]] std::vector<std::string> route_commands(const drone::Position& from,
                                                       const drone::Position& to, int speed);
 
+// The plan around `origin` instead of the takeoff point: a figure started in the air is flown
+// where the drone hovers, its heading becomes the figure's forward. Heights stay as they are.
+void move_plan_to(FigurePlan& plan, const drone::Position& origin);
+
 // Counts the position of a completed SDK command into source: go, cw/ccw, flip, up/down...
 void apply_command(drone::PositionSource& source, std::string_view command);
 

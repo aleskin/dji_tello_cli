@@ -2282,10 +2282,7 @@ void CommandProcessor::run_figure(const FigureSpec& spec, const Args& args)
         print_dry_run(plan);
         return;
     }
-    if (airborne_)
-    {
-        throw UsageError(name + ": land first, the figure starts with a takeoff");
-    }
+    const bool in_the_air = airborne_;
     if (plan.min_battery > 0)
     {
         const int battery = drone_.battery();
@@ -2328,6 +2325,12 @@ void CommandProcessor::run_figure(const FigureSpec& spec, const Args& args)
         }
     }
     const DropEmptyFolder drop_empty(dir);
+    if (in_the_air)
+    {
+        move_plan_to(plan, position_->position());
+        applog::info("cli", name + ": started in the air, no takeoff");
+        out_ << name << ": already in the air, flying around this spot without a takeoff\n";
+    }
     out_ << name << ": " << plan.summary << (photos > 0 ? " -> " + dir.string() : std::string())
          << '\n'
          << std::flush;
@@ -2367,7 +2370,7 @@ void CommandProcessor::run_figure(const FigureSpec& spec, const Args& args)
         finish_video();
         throw UsageError(name + ": " + what);
     };
-    if (!execute("takeoff"))
+    if (!in_the_air && !execute("takeoff"))
     {
         stop("takeoff failed");
     }
